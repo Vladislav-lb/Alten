@@ -15,6 +15,7 @@ const DEFAULT_CONFIG = Object.freeze({
   use_min_soc: false,
   use_backend_optimizer: true,
   telemetry_refresh_ms: 10000,
+  theme: "dark",
   batteries: [],
 });
 
@@ -36,6 +37,8 @@ class AltenEmsCard extends HTMLElement {
     this.activeGroup = "ALTEN";
     this.treeCollapsed = false;
     this.powerUnit = "kw";
+    this.theme = readStoredTheme() || normalizeTheme(this.config.theme);
+    this.settingsOpen = false;
     this.planOverrides = [];
     this.backendPlanResult = null;
     this.telemetryTimer = null;
@@ -86,6 +89,7 @@ class AltenEmsCard extends HTMLElement {
 
   setConfig(config) {
     this.config = deepMerge(DEFAULT_CONFIG, config || {});
+    this.theme = readStoredTheme() || normalizeTheme(config?.theme || this.config.theme);
     this.haService.setConfig(this.config);
     this.priceService.setConfig(this.config);
     this.backendService.setConfig(this.config);
@@ -138,6 +142,12 @@ class AltenEmsCard extends HTMLElement {
 
     if (field === "active-group") {
       this.activeGroup = value || "ALTEN";
+      return;
+    }
+
+    if (field === "theme") {
+      this.setTheme(value);
+      this.render();
       return;
     }
 
@@ -210,6 +220,18 @@ class AltenEmsCard extends HTMLElement {
       }
       if (action === "toggle-unit") {
         this.powerUnit = this.powerUnit === "kw" ? "mw" : "kw";
+      }
+      if (action === "toggle-theme") {
+        this.setTheme(this.theme === "dark" ? "light" : "dark");
+      }
+      if (action === "toggle-settings") {
+        this.settingsOpen = !this.settingsOpen;
+      }
+      if (action === "close-settings") {
+        this.settingsOpen = false;
+      }
+      if (action === "set-theme") {
+        this.setTheme(id);
       }
       if (action === "auto-plan") {
         this.planOverrides = [];
@@ -345,6 +367,8 @@ class AltenEmsCard extends HTMLElement {
       activeGroup: this.activeGroup,
       treeCollapsed: this.treeCollapsed,
       powerUnit: this.powerUnit,
+      theme: this.theme,
+      settingsOpen: this.settingsOpen,
     });
   }
 
@@ -362,6 +386,12 @@ class AltenEmsCard extends HTMLElement {
   addAlert(message, level = "warning") {
     this.alerts.push({ message, level, time: new Date().toISOString() });
     this.render();
+  }
+
+  setTheme(theme) {
+    this.theme = normalizeTheme(theme);
+    this.config = { ...this.config, theme: this.theme };
+    storeTheme(this.theme);
   }
 
   async saveSelectedGroup() {
@@ -431,6 +461,27 @@ function deepMerge(base, override) {
     }
   }
   return result;
+}
+
+function normalizeTheme(theme) {
+  return theme === "light" ? "light" : "dark";
+}
+
+function readStoredTheme() {
+  try {
+    const stored = localStorage.getItem("alten-ems-theme");
+    return stored === "light" || stored === "dark" ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeTheme(theme) {
+  try {
+    localStorage.setItem("alten-ems-theme", normalizeTheme(theme));
+  } catch {
+    // localStorage can be unavailable in restricted embeds.
+  }
 }
 
 if (!customElements.get("alten-ems-card")) {

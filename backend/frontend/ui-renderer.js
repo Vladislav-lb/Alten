@@ -38,12 +38,14 @@ export class UIRenderer extends EventTarget {
       activeGroup: selectedGroup,
       treeCollapsed = false,
       powerUnit = "kw",
+      theme = "dark",
+      settingsOpen = false,
     } = state;
     const activeGroup = selectedGroup || groups[0]?.group || "ALTEN";
     const unitLabel = powerUnit === "mw" ? "MW" : "kW";
 
     this.root.innerHTML = `
-      <section class="ems-app">
+      <section class="ems-app theme-${theme === "light" ? "light" : "dark"}">
         <header class="app-bar">
           <nav class="top-nav">
             <button class="${activeView === "control" ? "active" : ""}" data-action="navigate" data-id="control">Керування</button>
@@ -53,9 +55,12 @@ export class UIRenderer extends EventTarget {
           <div class="app-tools">
             <button class="icon-only" data-action="refresh" title="Оновити">⌕</button>
             <button class="icon-only" data-action="open-monitor" title="Монітор">▣</button>
+            <button class="icon-only" data-action="toggle-settings" title="Налаштування">⚙</button>
             <span class="user-dot"></span>
           </div>
         </header>
+
+        ${settingsOpen ? renderSettingsPanel(theme) : ""}
 
         <div class="workspace">
           <aside class="control-sidebar">
@@ -262,6 +267,34 @@ function renderChartPanel(plan) {
         ${barChart(entries, (entry) => entry.profit, "profit")}
       </article>
     </section>
+  `;
+}
+
+function renderSettingsPanel(theme) {
+  return `
+    <aside class="settings-drawer" aria-label="Налаштування EMS">
+      <div class="settings-drawer-head">
+        <div>
+          <strong>Налаштування</strong>
+          <span>Інтерфейс програми</span>
+        </div>
+        <button class="icon-only" data-action="close-settings" title="Закрити">×</button>
+      </div>
+      <div class="settings-block">
+        <span>Тема</span>
+        <div class="theme-switcher" role="group" aria-label="Тема інтерфейсу">
+          <button class="${theme === "dark" ? "active" : ""}" data-action="set-theme" data-id="dark">Темна</button>
+          <button class="${theme === "light" ? "active" : ""}" data-action="set-theme" data-id="light">Світла</button>
+        </div>
+      </div>
+      <label class="settings-field">
+        <span>Поточна тема</span>
+        <select data-field="theme">
+          <option value="dark" ${theme === "dark" ? "selected" : ""}>Темна</option>
+          <option value="light" ${theme === "light" ? "selected" : ""}>Світла</option>
+        </select>
+      </label>
+    </aside>
   `;
 }
 
