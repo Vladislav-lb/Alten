@@ -1,0 +1,1 @@
+"""Alten EMS backend package."""
