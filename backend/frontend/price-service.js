@@ -4,10 +4,11 @@ const CACHE_KEY = "alten-ems-prices";
 const DEFAULT_REFRESH_MS = 15 * 60 * 1000;
 
 export class PriceService extends EventTarget {
-  constructor({ hass = null, config = {} } = {}) {
+  constructor({ hass = null, config = {}, baseUrl = null } = {}) {
     super();
     this.hass = hass;
     this.config = config;
+    this.baseUrl = baseUrl;
     this.prices = loadCachedPrices();
     this.refreshTimer = null;
   }
@@ -65,10 +66,10 @@ export class PriceService extends EventTarget {
   }
 
   async fetchFromApi() {
-    const url = this.config.price_api_url;
+    const url = this.config.price_api_url || "/api/prices";
     if (!url) return [];
 
-    const response = await fetch(url, {
+    const response = await fetch(this.resolveUrl(url), {
       headers: {
         Accept: "application/json",
         ...(this.config.price_api_token ? { Authorization: `Bearer ${this.config.price_api_token}` } : {}),
@@ -122,6 +123,13 @@ export class PriceService extends EventTarget {
   emitError(error) {
     this.dispatchEvent(new CustomEvent("error", { detail: { error } }));
   }
+
+  resolveUrl(path) {
+    const configured = this.config.backend_url || this.config.backendUrl;
+    if (configured) return new URL(path, ensureTrailingSlash(configured)).toString();
+    if (this.baseUrl) return new URL(path, this.baseUrl).toString();
+    return path;
+  }
 }
 
 function normalizeApiPayload(payload) {
@@ -156,4 +164,8 @@ function saveCachedPrices(prices) {
   } catch {
     // Local storage can be disabled in kiosk browsers.
   }
+}
+
+function ensureTrailingSlash(url) {
+  return url.endsWith("/") ? url : `${url}/`;
 }

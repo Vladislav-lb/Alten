@@ -107,6 +107,7 @@ export class UIRenderer extends EventTarget {
               </div>
 
               ${renderPlanMatrix(planResult.plan)}
+              ${renderChartPanel(planResult.plan)}
 
               <div class="settings-band">
                 ${sliderRow("Мін. маржа:", "min-margin", config.min_margin ?? 500, "грн/МВт·год", 100, 2000)}
@@ -187,6 +188,65 @@ export class UIRenderer extends EventTarget {
     link.click();
     URL.revokeObjectURL(url);
   }
+}
+
+function renderChartPanel(plan) {
+  const entries = normalizePlanSlots(plan);
+  return `
+    <section class="chart-panel">
+      <article>
+        <div class="chart-title">
+          <strong>Price</strong>
+          <span>RDN hourly curve</span>
+        </div>
+        ${barChart(entries, (entry) => entry.price, "price")}
+      </article>
+      <article>
+        <div class="chart-title">
+          <strong>SOC</strong>
+          <span>State of charge forecast</span>
+        </div>
+        ${lineChart(entries, (entry) => entry.socEnd || 0)}
+      </article>
+      <article>
+        <div class="chart-title">
+          <strong>Profit</strong>
+          <span>Hourly P&L</span>
+        </div>
+        ${barChart(entries, (entry) => entry.profit, "profit")}
+      </article>
+    </section>
+  `;
+}
+
+function barChart(entries, pickValue, type) {
+  const values = entries.map((entry) => Number(pickValue(entry)) || 0);
+  const max = Math.max(...values.map((value) => Math.abs(value)), 1);
+  return `
+    <div class="bar-chart ${type}">
+      ${values.map((value, index) => `
+        <span
+          title="${HOURS[index]}: ${formatNumber(value, 0)}"
+          class="${value < 0 ? "negative-bar" : ""}"
+          style="--h:${Math.max(4, Math.abs(value) / max * 100)}%"
+        ></span>
+      `).join("")}
+    </div>
+  `;
+}
+
+function lineChart(entries, pickValue) {
+  const values = entries.map((entry) => Number(pickValue(entry)) || 0);
+  const points = values.map((value, index) => {
+    const x = entries.length <= 1 ? 0 : index / (entries.length - 1) * 100;
+    const y = 100 - Math.max(0, Math.min(100, value));
+    return `${x},${y}`;
+  }).join(" ");
+  return `
+    <svg class="line-chart" viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="SOC chart">
+      <polyline points="${points}" pathLength="100"></polyline>
+    </svg>
+  `;
 }
 
 function renderBatteryTree(batteries, selectedBatteryId) {

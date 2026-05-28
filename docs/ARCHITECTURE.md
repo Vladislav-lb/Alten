@@ -7,6 +7,7 @@ Alten EMS is split into three deployable surfaces.
 `frontend/` contains a vanilla JavaScript Home Assistant custom card:
 
 - `alten-ems-card.js` custom element lifecycle and Home Assistant bridge.
+- `backend-service.js` FastAPI backend API client for prices, batteries, planning, and commands.
 - `battery-manager.js` virtual battery aggregation and weighted SOC.
 - `plan-calculator.js` browser-side optimizer and CSV export support.
 - `price-service.js` price API, Home Assistant entity, cache, and fallback source.

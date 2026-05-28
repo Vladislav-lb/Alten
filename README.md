@@ -8,6 +8,7 @@ The project includes:
 - Home Assistant custom card frontend.
 - FastAPI backend for prices, batteries, planning, Modbus, MQTT, and plan history.
 - Home Assistant add-on packaging that serves both backend API and frontend UI.
+- Frontend API client and chart panel for price, SOC, and hourly profit.
 - Deterministic arbitrage optimizer with SOC protection and hourly profit.
 - Home Assistant services for operator commands.
 - Docker, CI, tests, and documentation scaffolding.
@@ -17,6 +18,7 @@ The project includes:
 ```text
 frontend/
   alten-ems-card.js
+  backend-service.js
   battery-manager.js
   plan-calculator.js
   price-service.js

@@ -125,16 +125,30 @@ export function summarizePlan(plan, battery, profit = null) {
 
 export function normalizePrices(prices = []) {
   return prices
-    .map((entry, index) => ({
-      id: entry.id || `price-${index}`,
-      time: entry.time || entry.datetime || entry.start || new Date(Date.now() + index * 3600000).toISOString(),
-      price: Number(entry.price ?? entry.value ?? entry.rdn ?? 0),
-      currency: entry.currency || "UAH",
-      market: entry.market || "RDN",
-      source: entry.source || "api",
-    }))
+    .map((entry, index) => normalizePriceEntry(entry, index))
     .filter((entry) => Number.isFinite(entry.price))
     .sort((a, b) => new Date(a.time) - new Date(b.time));
+}
+
+function normalizePriceEntry(entry, index) {
+  if (typeof entry === "number") {
+    return {
+      id: `price-${index}`,
+      time: new Date(Date.now() + index * 3600000).toISOString(),
+      price: entry,
+      currency: "UAH",
+      market: "RDN",
+      source: "api",
+    };
+  }
+  return {
+    id: entry.id || `price-${index}`,
+    time: entry.time || entry.datetime || entry.start || new Date(Date.now() + index * 3600000).toISOString(),
+    price: Number(entry.price ?? entry.value ?? entry.rdn ?? 0),
+    currency: entry.currency || "UAH",
+    market: entry.market || "RDN",
+    source: entry.source || "api",
+  };
 }
 
 export function planToCsv(plan = []) {

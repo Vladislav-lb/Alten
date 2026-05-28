@@ -1,3 +1,4 @@
+import { BackendService, getDefaultBackendBase } from "./backend-service.js";
 import { BatteryManager } from "./battery-manager.js";
 import { HomeAssistantService } from "./ha-service.js";
 import { PlanCalculator } from "./plan-calculator.js";
@@ -12,6 +13,7 @@ const DEFAULT_CONFIG = Object.freeze({
   min_margin: 500,
   efficiency: 92,
   use_min_soc: false,
+  use_backend_optimizer: true,
   batteries: [
     {
       id: "bess-1",
@@ -45,11 +47,19 @@ class AltenEmsCard extends HTMLElement {
     this.manualDischargePowerKw = 50;
     this.selectedBatteryId = null;
     this.planOverrides = [];
+    this.backendPlanResult = null;
     this.eventsBound = false;
     this.batteryManager = new BatteryManager({ batteries: DEFAULT_CONFIG.batteries });
     this.planCalculator = new PlanCalculator();
     this.haService = new HomeAssistantService({ config: this.config });
-    this.priceService = new PriceService({ config: this.config });
+    this.backendService = new BackendService({
+      config: this.config,
+      baseUrl: getDefaultBackendBase(import.meta.url),
+    });
+    this.priceService = new PriceService({
+      config: this.config,
+      baseUrl: getDefaultBackendBase(import.meta.url),
+    });
     this.renderer = new UIRenderer(this.contentRoot);
   }
 
@@ -58,6 +68,7 @@ class AltenEmsCard extends HTMLElement {
     await this.renderer.mount();
     this.bindEvents();
     this.priceService.startAutoRefresh();
+    await this.refreshBackendState();
     this.priceService.refresh().catch((error) => this.addAlert(error.message, "warning"));
     this.render();
   }
@@ -71,7 +82,9 @@ class AltenEmsCard extends HTMLElement {
     this.config = deepMerge(DEFAULT_CONFIG, config || {});
     this.haService.setConfig(this.config);
     this.priceService.setConfig(this.config);
+    this.backendService.setConfig(this.config);
     this.batteryManager.setBatteries(this.config.batteries || []);
+    this.refreshBackendState().catch((error) => this.addAlert(error.message, "warning"));
     this.render();
   }
 
@@ -167,8 +180,14 @@ class AltenEmsCard extends HTMLElement {
 
   async handleAction({ action, id, mode }) {
     try {
-      if (action === "refresh") await this.priceService.refresh();
-      if (action === "auto-plan") this.planOverrides = [];
+      if (action === "refresh") {
+        await this.refreshBackendState();
+        await this.priceService.refresh();
+      }
+      if (action === "auto-plan") {
+        this.planOverrides = [];
+        await this.optimizePlan();
+      }
       if (action === "clear-plan") this.planOverrides = this.getPlanResult().plan.map((entry) => ({
         ...entry,
         mode: "idle",
@@ -183,9 +202,9 @@ class AltenEmsCard extends HTMLElement {
       }
       if (action === "select-battery") this.selectedBatteryId = id;
       if (action === "add-battery") this.addDemoBattery();
-      if (action === "confirm-plan") await this.haService.confirmPlan(this.getPlanResult().plan);
+      if (action === "confirm-plan") await this.confirmPlan();
       if (action === "manual-control") {
-        await this.haService.manualControl({
+        await this.backendService.manualControl({
           batteryId: this.selectedBatteryId || "virtual",
           mode,
           powerKw: this.getManualPower(mode),
@@ -202,6 +221,7 @@ class AltenEmsCard extends HTMLElement {
   }
 
   getPlanResult() {
+    if (this.backendPlanResult && this.planOverrides.length === 0) return this.backendPlanResult;
     return this.planCalculator.calculate({
       prices: this.priceService.getPrices(),
       virtualBattery: this.batteryManager.getVirtualBattery(),
@@ -213,6 +233,42 @@ class AltenEmsCard extends HTMLElement {
         maxCyclesPerDay: this.config.max_cycles_per_day || 1.5,
       },
     });
+  }
+
+  async refreshBackendState() {
+    try {
+      const batteries = await this.backendService.fetchBatteries();
+      if (batteries.length) this.batteryManager.setBatteries(batteries);
+    } catch (error) {
+      this.addAlert(`Backend batteries unavailable: ${error.message}`, "warning");
+    }
+  }
+
+  async optimizePlan() {
+    if (!this.config.use_backend_optimizer) {
+      this.backendPlanResult = null;
+      return;
+    }
+    const result = await this.backendService.optimizePlan({
+      prices: this.priceService.getPrices(),
+      virtualBattery: this.batteryManager.getVirtualBattery(),
+      options: {
+        reserveSoc: this.config.reserve_soc,
+        minMargin: this.config.min_margin,
+        efficiency: this.config.efficiency,
+        cycleCostPerMwh: this.config.cycle_cost_per_mwh || 0,
+      },
+    });
+    this.backendPlanResult = result;
+  }
+
+  async confirmPlan() {
+    const plan = this.getPlanResult().plan;
+    try {
+      await this.backendService.applyPlan(plan);
+    } catch {
+      await this.haService.confirmPlan(plan);
+    }
   }
 
   render() {
