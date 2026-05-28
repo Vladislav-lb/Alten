@@ -42,7 +42,14 @@ files into `/config/www`.
 
 ## Real Battery Sensor Mapping
 
-Configure batteries through:
+Configure batteries from the add-on dashboard:
+
+1. Open the add-on Web UI.
+2. Go to `Моніторинг`.
+3. Press `+ Нова батарея`.
+4. Fill the Home Assistant sensor entity ids and press `Зберегти батарею`.
+
+The same configuration is also available through:
 
 ```http
 POST /api/batteries
@@ -74,7 +81,8 @@ Example payload:
 ```
 
 The Monitoring tab reads `/api/batteries`, so it will show real telemetry when
-these sensors exist in Home Assistant.
+these sensors exist in Home Assistant. Use the `Видалити` button on a battery
+card to remove test or obsolete batteries from the persistent add-on storage.
 
 ## Persistent Data
 

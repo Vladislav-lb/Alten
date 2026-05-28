@@ -14,6 +14,15 @@ export class BackendService extends EventTarget {
     return normalizeBackendBatteries(payload);
   }
 
+  async saveBattery(battery) {
+    const payload = await this.postJson("/api/batteries", normalizeBatteryPayload(battery));
+    return payload.battery;
+  }
+
+  async deleteBattery(batteryId) {
+    return this.deleteJson(`/api/batteries/${encodeURIComponent(batteryId)}`);
+  }
+
   async optimizePlan({ prices = [], virtualBattery, options = {} }) {
     const payload = await this.postJson("/api/plan/optimize", {
       prices: prices.map((entry) => Number(entry.price ?? entry.value ?? entry)),
@@ -70,6 +79,15 @@ export class BackendService extends EventTarget {
     return response.json();
   }
 
+  async deleteJson(path) {
+    const response = await fetch(this.resolveUrl(path), {
+      method: "DELETE",
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) throw new Error(`Backend request failed: ${response.status}`);
+    return response.json();
+  }
+
   resolveUrl(path) {
     const configured = this.config.backend_url || this.config.backendUrl;
     if (configured) return new URL(path, ensureTrailingSlash(configured)).toString();
@@ -100,8 +118,9 @@ export function normalizeBackendBatteries(payload = []) {
     maxSoc: Number(battery.maxSoc ?? battery.max_soc_percent ?? 95),
     maxChargeKw: Number(battery.maxChargeKw ?? battery.max_charge_kw ?? 0),
     maxDischargeKw: Number(battery.maxDischargeKw ?? battery.max_discharge_kw ?? 0),
-    roundtripEfficiency: Number(battery.roundtripEfficiency ?? battery.efficiency_percent / 100 ?? 0.92),
+    roundtripEfficiency: normalizeEfficiency(battery),
     protocol: battery.protocol || "backend",
+    sensors: battery.sensors || {},
     telemetry: {
       soc: Number(battery.telemetry?.soc ?? battery.telemetry?.soc_percent ?? battery.soc ?? battery.soc_percent ?? 50),
       powerKw: Number(battery.telemetry?.power_kw ?? battery.telemetry?.powerKw ?? battery.powerKw ?? battery.power_kw ?? 0),
@@ -114,6 +133,33 @@ export function normalizeBackendBatteries(payload = []) {
       online: battery.online !== false,
     },
   })).filter((battery) => battery.id && battery.capacityKwh > 0);
+}
+
+export function normalizeBatteryPayload(input = {}) {
+  return {
+    id: input.id || "battery_1",
+    name: input.name || input.id || "Battery",
+    group: input.group || "ALTEN",
+    site: input.site || "home",
+    region: input.region || "ua",
+    enabled: input.enabled !== false,
+    capacity_kwh: Number(input.capacity_kwh ?? input.capacityKwh ?? 0),
+    max_charge_kw: Number(input.max_charge_kw ?? input.maxChargeKw ?? 0),
+    max_discharge_kw: Number(input.max_discharge_kw ?? input.maxDischargeKw ?? 0),
+    min_soc_percent: Number(input.min_soc_percent ?? input.minSoc ?? 10),
+    max_soc_percent: Number(input.max_soc_percent ?? input.maxSoc ?? 100),
+    efficiency_percent: Number(input.efficiency_percent ?? input.efficiency ?? ((input.roundtripEfficiency ?? 0.92) * 100)),
+    protocol: input.protocol || "home_assistant",
+    connection: input.connection || { type: input.protocol || "home_assistant" },
+    sensors: {
+      soc: input.sensors?.soc || input.soc_sensor || "",
+      power: input.sensors?.power || input.power_sensor || "",
+      voltage: input.sensors?.voltage || input.voltage_sensor || "",
+      current: input.sensors?.current || input.current_sensor || "",
+      temperature: input.sensors?.temperature || input.temperature_sensor || "",
+      status: input.sensors?.status || input.status_sensor || "",
+    },
+  };
 }
 
 export function normalizeBackendPlan(payload = {}) {
@@ -177,4 +223,11 @@ function ensureTrailingSlash(url) {
 function numberOrNull(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+function normalizeEfficiency(battery) {
+  const direct = Number(battery.roundtripEfficiency);
+  if (Number.isFinite(direct) && direct > 0) return direct;
+  const percent = Number(battery.efficiency_percent ?? battery.efficiency);
+  return Number.isFinite(percent) && percent > 0 ? percent / 100 : 0.92;
 }

@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from battery_store import BatteryStore
 from config import load_settings
-from modbus.client import MemoryRegisterTransport, ModbusBatteryClient, PymodbusTcpTransport
+from modbus.client import ModbusBatteryClient, PymodbusTcpTransport
 from mqtt.client import EmsMqttClient
 from optimizer.arbitrage import BatteryEnvelope, PriceSlot, optimize_arbitrage
 from plan_store import PlanStore
@@ -47,39 +47,7 @@ DEFAULT_PRICES = [
     5957, 9939, 13700, 15000, 15000, 11000
 ]
 
-DEFAULT_BATTERIES = [
-    {
-        "id": "batt_1",
-        "name": "ALTEN Battery 1",
-        "group": "ALTEN",
-        "site": "site_1",
-        "region": "ua",
-        "enabled": True,
-        "capacity_kwh": 215,
-        "max_charge_kw": 125,
-        "max_discharge_kw": 125,
-        "min_soc_percent": 10,
-        "max_soc_percent": 95,
-        "soc_percent": 50,
-        "power_kw": 0,
-        "efficiency_percent": 92,
-        "protocol": "home_assistant",
-        "connection": {"type": "home_assistant"},
-        "sensors": {
-            "soc": "",
-            "power": "",
-            "voltage": "",
-            "current": "",
-            "temperature": "",
-            "status": ""
-        },
-        "telemetry": {
-            "soc": 50,
-            "power_kw": 0,
-            "status": "idle"
-        }
-    }
-]
+DEFAULT_BATTERIES = []
 
 modbus_clients = {}
 battery_store = BatteryStore(settings.data_dir, DEFAULT_BATTERIES)
@@ -113,17 +81,17 @@ class PlanApplyRequest(BaseModel):
 
 
 class ManualCommand(BaseModel):
-    battery_id: str = "batt_1"
+    battery_id: str = "virtual"
     power_kw: float = Field(default=0, ge=0)
 
 
 class MqttPublishRequest(BaseModel):
-    battery_id: str = "batt_1"
+    battery_id: str = "virtual"
     payload: dict[str, Any]
 
 
 class TelemetryIngestRequest(BaseModel):
-    battery_id: str = "batt_1"
+    battery_id: str = "virtual"
     telemetry: dict[str, Any]
 
 
@@ -197,6 +165,15 @@ def upsert_battery(battery: dict[str, Any]):
     return {"ok": True, "battery": saved}
 
 
+@app.delete("/api/batteries/{battery_id}")
+def delete_battery(battery_id: str):
+    removed = battery_store.remove(battery_id)
+    if not removed:
+        raise HTTPException(status_code=404, detail=f"Unknown battery: {battery_id}")
+    refresh_modbus_clients()
+    return {"ok": True, "deleted": battery_id}
+
+
 @app.post("/api/batteries/{battery_id}/telemetry")
 def ingest_battery_telemetry(battery_id: str, request: TelemetryIngestRequest | dict[str, Any]):
     telemetry = request.get("telemetry", request) if isinstance(request, dict) else request.telemetry
@@ -209,7 +186,9 @@ def ingest_battery_telemetry(battery_id: str, request: TelemetryIngestRequest | 
 
 @app.post("/api/plan/optimize")
 def optimize_plan(request: OptimizeRequest):
-    battery = request.battery or BatteryModel(**DEFAULT_BATTERIES[0])
+    if request.battery is None:
+        raise HTTPException(status_code=400, detail="Battery envelope is required for optimization")
+    battery = request.battery
     prices = request.prices or DEFAULT_PRICES
     plan = build_plan(
         prices=prices,
@@ -264,7 +243,7 @@ def ha_apply_plan(request: PlanApplyRequest):
 
 @app.post("/api/services/alten_ems/emergency_stop")
 async def ha_emergency_stop(command: ManualCommand | None = None):
-    battery_id = command.battery_id if command else "batt_1"
+    battery_id = command.battery_id if command else "virtual"
     await send_battery_command(battery_id, "idle", 0)
     saved = plan_store.set_status("failed")
     return {"ok": True, "service": "alten_ems.emergency_stop", "current_plan": saved}
@@ -449,22 +428,12 @@ def build_modbus_clients():
         return clients
     if settings.modbus_host:
         return {
-            "batt_1": ModbusBatteryClient(
+            "modbus_default": ModbusBatteryClient(
                 PymodbusTcpTransport(settings.modbus_host, settings.modbus_port),
                 unit=settings.modbus_unit,
             )
         }
-    return {
-        "batt_1": ModbusBatteryClient(
-            MemoryRegisterTransport({
-                100: 500,
-                101: 0,
-                102: 0,
-                103: 0,
-                104: 0,
-            }),
-        )
-    }
+    return {}
 
 
 modbus_clients.update(build_modbus_clients())

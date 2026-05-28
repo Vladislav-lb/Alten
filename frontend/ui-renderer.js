@@ -25,8 +25,22 @@ export class UIRenderer extends EventTarget {
 
   render(state) {
     this.state = state;
-    const { virtualBattery, groups, batteries, planResult, alerts, selectedBatteryId, config, activeView = "control" } = state;
-    const activeGroup = groups[0]?.group || "-- Група --";
+    const {
+      virtualBattery,
+      groups,
+      batteries,
+      planResult,
+      alerts,
+      selectedBatteryId,
+      config,
+      activeView = "control",
+      activeScope = "clients",
+      activeGroup: selectedGroup,
+      treeCollapsed = false,
+      powerUnit = "kw",
+    } = state;
+    const activeGroup = selectedGroup || groups[0]?.group || "ALTEN";
+    const unitLabel = powerUnit === "mw" ? "MW" : "kW";
 
     this.root.innerHTML = `
       <section class="ems-app">
@@ -49,9 +63,9 @@ export class UIRenderer extends EventTarget {
 
             <section class="side-section">
               <div class="segmented">
-                <button class="active" data-action="scope" data-id="clients">По клієнтах</button>
-                <button data-action="scope" data-id="regions">По регіонах</button>
-                <button data-action="scope" data-id="osr">По ОСР</button>
+                <button class="${activeScope === "clients" ? "active" : ""}" data-action="scope" data-id="clients">По клієнтах</button>
+                <button class="${activeScope === "regions" ? "active" : ""}" data-action="scope" data-id="regions">По регіонах</button>
+                <button class="${activeScope === "osr" ? "active" : ""}" data-action="scope" data-id="osr">По ОСР</button>
               </div>
               <input class="search-input" data-field="battery-search" placeholder="Пошук..." type="search">
               <div class="side-actions">
@@ -79,14 +93,14 @@ export class UIRenderer extends EventTarget {
             </section>
 
             <section class="side-section battery-tree">
-              ${renderBatteryTree(batteries, selectedBatteryId)}
+              ${renderBatteryTree(batteries, selectedBatteryId, treeCollapsed)}
             </section>
           </aside>
 
           <main class="main-stage">
             ${alerts.length ? renderAlerts(alerts) : ""}
             ${activeView === "analytics" ? renderChartsView(planResult.plan, planResult.summary, virtualBattery) : ""}
-            ${activeView === "monitoring" ? renderMonitoringView(batteries, virtualBattery) : ""}
+            ${activeView === "monitoring" ? renderMonitoringView(batteries, virtualBattery, selectedBatteryId) : ""}
 
             <section class="plan-card ${activeView !== "control" ? "view-hidden" : ""}">
               <div class="day-tab">ЗАВТРА</div>
@@ -97,18 +111,18 @@ export class UIRenderer extends EventTarget {
                     <input data-field="plan-date" type="date" value="${tomorrowValue()}">
                   </label>
                   <button data-action="export-plan">📊 Експорт</button>
-                  <button data-action="toggle-unit">kW ↔ MW</button>
+                  <button data-action="toggle-unit">${unitLabel} ↔ ${powerUnit === "mw" ? "kW" : "MW"}</button>
                 </div>
               </div>
 
               <div class="summary-strip">
                 ${summaryItem("🔋 Ємність:", `${formatNumber(virtualBattery.capacityKwh, 0)} kWh`)}
-                ${summaryItem("⚡ Заряд:", `${formatNumber(totalCharge(planResult.plan), 0)} kW`)}
-                ${summaryItem("⚡ Розряд:", `${formatNumber(totalDischarge(planResult.plan), 0)} kW`)}
+                ${summaryItem("⚡ Заряд:", `${formatPower(totalCharge(planResult.plan), powerUnit)} ${unitLabel}`)}
+                ${summaryItem("⚡ Розряд:", `${formatPower(totalDischarge(planResult.plan), powerUnit)} ${unitLabel}`)}
                 ${summaryItem("📊 SOC:", `${formatNumber(virtualBattery.soc, 0)}% (${formatNumber(virtualBattery.capacityKwh * virtualBattery.soc / 100, 0)} kWh)`)}
               </div>
 
-              ${renderPlanMatrix(planResult.plan)}
+              ${renderPlanMatrix(planResult.plan, powerUnit)}
 
               <div class="settings-band">
                 ${sliderRow("Мін. маржа:", "min-margin", config.min_margin ?? 500, "грн/МВт·год", 100, 2000)}
@@ -126,6 +140,7 @@ export class UIRenderer extends EventTarget {
                 <button data-action="auto-plan">⚡ Авто план</button>
                 <button data-action="confirm-plan">✅ Підтвердити</button>
                 <button data-action="clear-plan">🗑 Очистити</button>
+                <button class="delete-button" data-action="emergency-stop">STOP</button>
               </div>
             </section>
 
@@ -163,6 +178,7 @@ export class UIRenderer extends EventTarget {
         action,
         id: button.dataset.id,
         mode: button.dataset.mode,
+        battery: action === "save-battery-config" ? this.collectBatteryForm() : null,
       },
     }));
   }
@@ -188,6 +204,35 @@ export class UIRenderer extends EventTarget {
     link.download = `alten-ems-plan-${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
+  }
+
+  collectBatteryForm() {
+    const form = this.root.querySelector("[data-battery-config-form]");
+    if (!form) return {};
+    const read = (key) => form.querySelector(`[data-form-key="${key}"]`)?.value?.trim() || "";
+    return {
+      id: read("id"),
+      name: read("name"),
+      group: read("group"),
+      site: read("site"),
+      region: read("region"),
+      capacity_kwh: read("capacity_kwh"),
+      max_charge_kw: read("max_charge_kw"),
+      max_discharge_kw: read("max_discharge_kw"),
+      min_soc_percent: read("min_soc_percent"),
+      max_soc_percent: read("max_soc_percent"),
+      efficiency_percent: read("efficiency_percent"),
+      protocol: "home_assistant",
+      connection: { type: "home_assistant" },
+      sensors: {
+        soc: read("sensor_soc"),
+        power: read("sensor_power"),
+        voltage: read("sensor_voltage"),
+        current: read("sensor_current"),
+        temperature: read("sensor_temperature"),
+        status: read("sensor_status"),
+      },
+    };
   }
 }
 
@@ -247,7 +292,7 @@ function renderChartsView(plan, summary, virtualBattery) {
   `;
 }
 
-function renderMonitoringView(batteries, virtualBattery) {
+function renderMonitoringView(batteries, virtualBattery, selectedBatteryId) {
   const enabled = batteries.filter((battery) => battery.enabled);
   const online = batteries.filter((battery) => battery.telemetry?.online !== false && battery.telemetry?.lastSeen).length;
   const totalPower = batteries.reduce((sum, battery) => sum + (Number(battery.telemetry?.powerKw) || 0), 0);
@@ -258,6 +303,7 @@ function renderMonitoringView(batteries, virtualBattery) {
           <h2>📟 Моніторинг батарей</h2>
           <p>Реальні сенсори Home Assistant / Modbus / MQTT для BESS</p>
         </div>
+        <button class="save-button" data-action="add-battery">+ Нова батарея</button>
         <div class="analytics-kpis">
           ${analyticsKpi("Онлайн", `${online}/${batteries.length}`)}
           ${analyticsKpi("Активні", `${enabled.length}`)}
@@ -268,6 +314,7 @@ function renderMonitoringView(batteries, virtualBattery) {
       <div class="battery-monitor-grid">
         ${batteries.map(renderBatteryMonitorCard).join("") || emptyState("Немає підключених батарей")}
       </div>
+      ${renderBatteryConfigForm(batteries, selectedBatteryId)}
       <div class="sensor-table-card">
         <div class="chart-title">
           <strong>Сенсори батарей</strong>
@@ -291,6 +338,10 @@ function renderBatteryMonitorCard(battery) {
         </div>
         <span class="online-pill">${isOnline ? "online" : "waiting"}</span>
       </div>
+      <div class="battery-card-actions">
+        <button data-action="select-battery" data-id="${battery.id}">Редагувати</button>
+        <button class="delete-button" data-action="delete-battery" data-id="${battery.id}">Видалити</button>
+      </div>
       <div class="soc-ring" style="--soc:${Math.max(0, Math.min(100, Number(telemetry.soc) || 0))}%">
         <strong>${formatNumber(telemetry.soc, 0)}%</strong>
         <span>SOC</span>
@@ -304,6 +355,55 @@ function renderBatteryMonitorCard(battery) {
         ${sensorValue("Source", telemetry.source || "backend")}
       </div>
     </article>
+  `;
+}
+
+function renderBatteryConfigForm(batteries, selectedBatteryId) {
+  const candidate = selectedBatteryId === "__new__"
+    ? {}
+    : batteries.find((battery) => battery.id === selectedBatteryId)
+      || batteries.find((battery) => battery.id === "inverter_battery")
+      || batteries[0]
+      || {};
+  const sensors = candidate.sensors || {};
+  return `
+    <div class="battery-config-card" data-battery-config-form>
+      <div class="chart-title">
+        <strong>Налаштування батареї</strong>
+        <span>Додати або оновити сенсори без SSH</span>
+      </div>
+      <div class="battery-config-grid">
+        ${formInput("ID", "id", candidate.id || "inverter_battery")}
+        ${formInput("Назва", "name", candidate.name || "Inverter Battery")}
+        ${formInput("Група", "group", candidate.group || "ALTEN")}
+        ${formInput("Site", "site", candidate.site || "home")}
+        ${formInput("Region", "region", candidate.region || "ua")}
+        ${formInput("Ємність kWh", "capacity_kwh", candidate.capacityKwh || 16.1, "number")}
+        ${formInput("Max charge kW", "max_charge_kw", candidate.maxChargeKw || 5.7, "number")}
+        ${formInput("Max discharge kW", "max_discharge_kw", candidate.maxDischargeKw || 5.7, "number")}
+        ${formInput("Min SOC %", "min_soc_percent", candidate.minSoc || 35, "number")}
+        ${formInput("Max SOC %", "max_soc_percent", candidate.maxSoc || 100, "number")}
+        ${formInput("Efficiency %", "efficiency_percent", Math.round((candidate.roundtripEfficiency || 0.99) * 100), "number")}
+        ${formInput("SOC sensor", "sensor_soc", sensors.soc || "sensor.inverter_battery")}
+        ${formInput("Power sensor", "sensor_power", sensors.power || "sensor.inverter_battery_power")}
+        ${formInput("Voltage sensor", "sensor_voltage", sensors.voltage || "sensor.inverter_battery_voltage")}
+        ${formInput("Current sensor", "sensor_current", sensors.current || "sensor.inverter_battery_current")}
+        ${formInput("Temperature sensor", "sensor_temperature", sensors.temperature || "sensor.inverter_battery_temperature")}
+        ${formInput("Status sensor", "sensor_status", sensors.status || "sensor.inverter_device_alarm")}
+      </div>
+      <div class="command-row">
+        <button class="save-button" data-action="save-battery-config">Зберегти батарею</button>
+      </div>
+    </div>
+  `;
+}
+
+function formInput(label, key, value = "", type = "text") {
+  return `
+    <label>
+      <span>${escapeHtml(label)}</span>
+      <input data-form-key="${key}" type="${type}" value="${escapeHtml(value)}">
+    </label>
   `;
 }
 
@@ -414,14 +514,14 @@ function lineChart(entries, pickValue) {
   `;
 }
 
-function renderBatteryTree(batteries, selectedBatteryId) {
+function renderBatteryTree(batteries, selectedBatteryId, treeCollapsed = false) {
   if (!batteries.length) return emptyState("Немає батарей");
   return `
     <div class="tree-node">
-      <button class="tree-toggle" data-action="toggle-tree">▸</button>
+      <button class="tree-toggle" data-action="toggle-tree">${treeCollapsed ? "▸" : "▾"}</button>
       <label><input type="checkbox" checked> 🏢 ALTEN</label>
     </div>
-    <div class="tree-children">
+    <div class="tree-children ${treeCollapsed ? "collapsed" : ""}">
       ${batteries.map((battery) => `
         <article class="battery-item ${selectedBatteryId === battery.id ? "selected" : ""}">
           <button data-action="select-battery" data-id="${battery.id}">
@@ -443,8 +543,9 @@ function renderAlerts(alerts) {
   `;
 }
 
-function renderPlanMatrix(plan) {
+function renderPlanMatrix(plan, powerUnit = "kw") {
   const entries = normalizePlanSlots(plan);
+  const unitLabel = powerUnit === "mw" ? "MW" : "kW";
   return `
     <div class="matrix-wrap">
       <table class="plan-matrix">
@@ -456,8 +557,8 @@ function renderPlanMatrix(plan) {
         </thead>
         <tbody>
           ${matrixRow("💰 Ціна РДН", entries, (entry) => formatNumber(entry.price, 0), "price-row")}
-          ${inputMatrixRow("🔋 Купівля (kW)", entries, "plan-buy", (entry) => entry.mode === "charge" ? entry.powerKw : 0, "buy-row")}
-          ${inputMatrixRow("⚡ Продаж (kW)", entries, "plan-sell", (entry) => entry.mode === "discharge" ? entry.powerKw : 0, "sell-row")}
+          ${inputMatrixRow(`🔋 Купівля (${unitLabel})`, entries, "plan-buy", (entry) => formatPowerValue(entry.mode === "charge" ? entry.powerKw : 0, powerUnit), "buy-row")}
+          ${inputMatrixRow(`⚡ Продаж (${unitLabel})`, entries, "plan-sell", (entry) => formatPowerValue(entry.mode === "discharge" ? entry.powerKw : 0, powerUnit), "sell-row")}
           ${matrixRow("↔ Дія", entries, (entry) => modeLabel(entry.mode), "action-row")}
           ${matrixRow("💰 Прибуток", entries, (entry) => formatNumber(entry.profit, 0), "profit-row")}
           ${matrixRow("🔋 SOC (kWh)", entries, (entry) => formatNumber(entry.batteryEnergyKwh || 0, 0), "soc-row")}
@@ -607,6 +708,15 @@ function formatNumber(value, decimals = 1) {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   }).format(Number(value) || 0);
+}
+
+function formatPower(valueKw, unit = "kw") {
+  return formatNumber(formatPowerValue(valueKw, unit), unit === "mw" ? 3 : 0);
+}
+
+function formatPowerValue(valueKw, unit = "kw") {
+  const value = Number(valueKw) || 0;
+  return unit === "mw" ? value / 1000 : value;
 }
 
 function formatPlainNumber(value) {

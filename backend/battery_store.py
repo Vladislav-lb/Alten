@@ -43,6 +43,14 @@ class BatteryStore:
     def get(self, battery_id: str) -> dict[str, Any] | None:
         return next((battery for battery in self.list() if battery.get("id") == battery_id), None)
 
+    def remove(self, battery_id: str) -> bool:
+        batteries = self.list()
+        next_batteries = [battery for battery in batteries if battery.get("id") != battery_id]
+        if len(next_batteries) == len(batteries):
+            return False
+        self.save_all(next_batteries)
+        return True
+
     def update_telemetry(self, battery_id: str, telemetry: dict[str, Any]) -> dict[str, Any]:
         battery = self.get(battery_id)
         if battery is None:

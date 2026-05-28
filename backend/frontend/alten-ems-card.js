@@ -15,23 +15,7 @@ const DEFAULT_CONFIG = Object.freeze({
   use_min_soc: false,
   use_backend_optimizer: true,
   telemetry_refresh_ms: 10000,
-  batteries: [
-    {
-      id: "bess-1",
-      name: "BESS Block 1",
-      group: "main",
-      site: "site-a",
-      region: "ua",
-      capacityKwh: 500,
-      maxChargeKw: 250,
-      maxDischargeKw: 250,
-      minSoc: 15,
-      maxSoc: 95,
-      roundtripEfficiency: 0.91,
-      protocol: "modbus-tcp",
-      telemetry: { soc: 48, powerKw: 0, status: "idle" },
-    },
-  ],
+  batteries: [],
 });
 
 class AltenEmsCard extends HTMLElement {
@@ -48,6 +32,10 @@ class AltenEmsCard extends HTMLElement {
     this.manualDischargePowerKw = 50;
     this.selectedBatteryId = null;
     this.activeView = "control";
+    this.activeScope = "clients";
+    this.activeGroup = "ALTEN";
+    this.treeCollapsed = false;
+    this.powerUnit = "kw";
     this.planOverrides = [];
     this.backendPlanResult = null;
     this.telemetryTimer = null;
@@ -136,7 +124,8 @@ class AltenEmsCard extends HTMLElement {
 
   handleInput({ field, id, value }) {
     if (field === "battery-enabled") {
-      this.batteryManager.setEnabled(id, value);
+      const battery = this.batteryManager.setEnabled(id, value);
+      this.backendService.saveBattery(battery).catch((error) => this.addAlert(error.message, "warning"));
       return;
     }
 
@@ -144,6 +133,11 @@ class AltenEmsCard extends HTMLElement {
       this.manualTarget = value;
       this.selectedBatteryId = value === "virtual" ? null : value;
       this.render();
+      return;
+    }
+
+    if (field === "active-group") {
+      this.activeGroup = value || "ALTEN";
       return;
     }
 
@@ -184,11 +178,11 @@ class AltenEmsCard extends HTMLElement {
     if (field === "plan-power") override.powerKw = Math.max(0, Number(value) || 0);
     if (field === "plan-lock") override.locked = Boolean(value);
     if (field === "plan-buy") {
-      override.powerKw = Math.max(0, Number(value) || 0);
+      override.powerKw = this.normalizePowerInput(value);
       override.mode = override.powerKw > 0 ? "charge" : "idle";
     }
     if (field === "plan-sell") {
-      override.powerKw = Math.max(0, Number(value) || 0);
+      override.powerKw = this.normalizePowerInput(value);
       override.mode = override.powerKw > 0 ? "discharge" : "idle";
     }
 
@@ -196,14 +190,26 @@ class AltenEmsCard extends HTMLElement {
     this.render();
   }
 
-  async handleAction({ action, id, mode }) {
+  async handleAction({ action, id, mode, battery }) {
     try {
       if (action === "refresh") {
         await this.refreshBackendState();
         await this.priceService.refresh();
       }
+      if (action === "open-monitor") {
+        this.activeView = "monitoring";
+      }
       if (action === "navigate") {
         this.activeView = id || "control";
+      }
+      if (action === "scope") {
+        this.activeScope = id || "clients";
+      }
+      if (action === "toggle-tree") {
+        this.treeCollapsed = !this.treeCollapsed;
+      }
+      if (action === "toggle-unit") {
+        this.powerUnit = this.powerUnit === "kw" ? "mw" : "kw";
       }
       if (action === "auto-plan") {
         this.planOverrides = [];
@@ -216,13 +222,34 @@ class AltenEmsCard extends HTMLElement {
         locked: true,
       }));
       if (action === "select-all") {
-        this.batteryManager.getBatteries().forEach((battery) => this.batteryManager.setEnabled(battery.id, true));
+        await this.setAllBatteriesEnabled(true);
       }
       if (action === "clear-selection") {
-        this.batteryManager.getBatteries().forEach((battery) => this.batteryManager.setEnabled(battery.id, false));
+        await this.setAllBatteriesEnabled(false);
       }
       if (action === "select-battery") this.selectedBatteryId = id;
-      if (action === "add-battery") this.addDemoBattery();
+      if (action === "add-battery") {
+        this.selectedBatteryId = "__new__";
+        this.activeView = "monitoring";
+      }
+      if (action === "delete-battery") {
+        if (!id) return;
+        if (!window.confirm(`Видалити батарею ${id}?`)) return;
+        await this.backendService.deleteBattery(id);
+        if (this.selectedBatteryId === id) this.selectedBatteryId = null;
+        await this.refreshBackendState();
+      }
+      if (action === "save-battery-config") {
+        if (!battery?.id) {
+          this.addAlert("Вкажіть ID батареї перед збереженням.", "warning");
+          return;
+        }
+        await this.backendService.saveBattery(battery);
+        this.selectedBatteryId = battery.id;
+        await this.refreshBackendState();
+      }
+      if (action === "save-group") await this.saveSelectedGroup();
+      if (action === "delete-group") await this.clearActiveGroup();
       if (action === "confirm-plan") await this.confirmPlan();
       if (action === "manual-control") {
         await this.backendService.manualControl({
@@ -232,7 +259,15 @@ class AltenEmsCard extends HTMLElement {
         });
       }
       if (action === "emergency-stop") {
-        await this.haService.emergencyStop();
+        try {
+          await this.backendService.manualControl({
+            batteryId: this.selectedBatteryId || "virtual",
+            mode: "idle",
+            powerKw: 0,
+          });
+        } catch {
+          await this.haService.emergencyStop();
+        }
         this.addAlert("Emergency stop requested by operator.", "critical");
       }
     } catch (error) {
@@ -259,7 +294,7 @@ class AltenEmsCard extends HTMLElement {
   async refreshBackendState() {
     try {
       const batteries = await this.backendService.fetchBatteries();
-      if (batteries.length) this.batteryManager.setBatteries(batteries);
+      this.batteryManager.setBatteries(batteries);
     } catch (error) {
       this.addAlert(`Backend batteries unavailable: ${error.message}`, "warning");
     }
@@ -306,6 +341,10 @@ class AltenEmsCard extends HTMLElement {
       alerts,
       selectedBatteryId: this.selectedBatteryId,
       activeView: this.activeView,
+      activeScope: this.activeScope,
+      activeGroup: this.activeGroup,
+      treeCollapsed: this.treeCollapsed,
+      powerUnit: this.powerUnit,
     });
   }
 
@@ -325,28 +364,44 @@ class AltenEmsCard extends HTMLElement {
     this.render();
   }
 
-  addDemoBattery() {
-    const index = this.batteryManager.getBatteries().length + 1;
-    this.batteryManager.upsertBattery({
-      id: `bess-${index}`,
-      name: `BESS Block ${index}`,
-      group: index % 2 ? "main" : "reserve",
-      site: "site-a",
-      region: "ua",
-      capacityKwh: 500,
-      maxChargeKw: 250,
-      maxDischargeKw: 250,
-      minSoc: 15,
-      maxSoc: 95,
-      protocol: index % 2 ? "mqtt" : "modbus-rs485",
-      telemetry: { soc: 45 + index, powerKw: 0, status: "idle" },
-    });
+  async saveSelectedGroup() {
+    const selected = this.selectedBatteryId ? this.batteryManager.getBattery(this.selectedBatteryId) : null;
+    if (!selected) {
+      this.addAlert("Оберіть батарею, щоб змінити її групу.", "warning");
+      return;
+    }
+    await this.backendService.saveBattery({ ...selected, group: this.activeGroup || selected.group || "ALTEN" });
+    await this.refreshBackendState();
+  }
+
+  async clearActiveGroup() {
+    const group = this.activeGroup || "ALTEN";
+    const batteries = this.batteryManager.getBatteries().filter((battery) => battery.group === group);
+    if (!batteries.length) {
+      this.addAlert("У цій групі немає батарей.", "warning");
+      return;
+    }
+    await Promise.all(batteries.map((battery) => this.backendService.saveBattery({ ...battery, group: "ALTEN" })));
+    this.activeGroup = "ALTEN";
+    await this.refreshBackendState();
+  }
+
+  async setAllBatteriesEnabled(enabled) {
+    const batteries = this.batteryManager.getBatteries().map((battery) => ({ ...battery, enabled }));
+    batteries.forEach((battery) => this.batteryManager.upsertBattery(battery));
+    await Promise.all(batteries.map((battery) => this.backendService.saveBattery(battery)));
+    await this.refreshBackendState();
   }
 
   getManualPower(mode) {
     if (mode === "charge") return this.manualChargePowerKw || this.manualPowerKw || 0;
     if (mode === "discharge") return this.manualDischargePowerKw || this.manualPowerKw || 0;
     return 0;
+  }
+
+  normalizePowerInput(value) {
+    const power = Math.max(0, Number(value) || 0);
+    return this.powerUnit === "mw" ? power * 1000 : power;
   }
 
   async loadStyles() {

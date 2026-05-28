@@ -13,6 +13,7 @@ http://localhost:8000
 - `GET /api/batteries` returns configured BESS assets.
 - `GET /api/batteries/{battery_id}` returns one BESS asset with live telemetry.
 - `POST /api/batteries` creates or updates a battery definition.
+- `DELETE /api/batteries/{battery_id}` removes a battery definition.
 - `POST /api/batteries/{battery_id}/telemetry` ingests external telemetry.
 
 Example real battery configuration:

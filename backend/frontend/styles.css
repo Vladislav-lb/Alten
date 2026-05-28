@@ -575,6 +575,7 @@ h2 {
 }
 
 .battery-monitor-card,
+.battery-config-card,
 .sensor-table-card {
   border: 1px solid #d9dee3;
   border-radius: 8px;
@@ -606,6 +607,37 @@ h2 {
   margin-top: 3px;
   color: #7b8792;
   font-size: 11px;
+}
+
+.battery-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.battery-card-actions button {
+  flex: 1;
+  min-height: 28px;
+}
+
+.battery-config-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.battery-config-grid label {
+  display: grid;
+  gap: 5px;
+}
+
+.battery-config-grid span {
+  color: #68737f;
+  font-size: 11px;
+}
+
+.tree-children.collapsed {
+  display: none;
 }
 
 .online-pill {
@@ -922,7 +954,8 @@ h2 {
   .analytics-header,
   .monitoring-header,
   .analytics-kpis,
-  .battery-monitor-grid {
+  .battery-monitor-grid,
+  .battery-config-grid {
     grid-template-columns: 1fr 1fr;
   }
 
@@ -947,7 +980,8 @@ h2 {
   .summary-strip,
   .lower-grid,
   .chart-panel,
-  .battery-monitor-grid {
+  .battery-monitor-grid,
+  .battery-config-grid {
     grid-template-columns: 1fr;
   }
 
