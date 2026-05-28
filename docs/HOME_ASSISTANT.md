@@ -2,6 +2,21 @@
 
 ## Frontend Card
 
+For a Lovelace dashboard such as:
+
+```text
+http://192.168.110.94:8123/dashboard-energy-2/energy
+```
+
+the card runs inside Home Assistant on port `8123`, while the EMS add-on backend
+runs on port `8000`. Configure the card with:
+
+```yaml
+type: custom:alten-ems-card
+backend_url: http://192.168.110.94:8000
+price_api_url: http://192.168.110.94:8000/api/prices
+```
+
 Option A: use the add-on hosted resource:
 
 ```yaml

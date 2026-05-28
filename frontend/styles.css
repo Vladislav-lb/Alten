@@ -87,6 +87,10 @@ input[type="range"] {
   box-shadow: inset 0 -3px 0 #ffffff;
 }
 
+.view-hidden {
+  display: none !important;
+}
+
 .app-tools {
   display: flex;
   align-items: center;
@@ -499,6 +503,61 @@ h2 {
   margin-top: 10px;
 }
 
+.analytics-view {
+  display: grid;
+  gap: 12px;
+}
+
+.analytics-header,
+.wide-chart {
+  border: 1px solid #d9dee3;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.analytics-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.analytics-header p {
+  margin: 5px 0 0;
+  color: #7b8792;
+}
+
+.analytics-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(90px, 1fr));
+  gap: 8px;
+  min-width: min(560px, 100%);
+}
+
+.analytics-kpis article {
+  border: 1px solid #e0e4e8;
+  border-radius: 6px;
+  background: #f7fbff;
+  padding: 10px;
+}
+
+.analytics-kpis span,
+.analytics-kpis strong {
+  display: block;
+}
+
+.analytics-kpis span {
+  color: #7b8792;
+  font-size: 11px;
+}
+
+.analytics-kpis strong {
+  margin-top: 5px;
+  color: #1e2933;
+  font-size: 16px;
+}
+
 .chart-panel article {
   min-width: 0;
   border: 1px solid #d9dee3;
@@ -560,6 +619,49 @@ h2 {
   stroke: #2196f3;
   stroke-width: 3;
   vector-effect: non-scaling-stroke;
+}
+
+.dispatch-chart {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(24, minmax(5px, 1fr));
+  gap: 4px;
+  height: 160px;
+  margin-top: 8px;
+  border: 1px solid #eef1f4;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #f8fcff 0 50%, #fffaf5 50% 100%);
+  padding: 8px;
+}
+
+.dispatch-chart .zero-line {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 50%;
+  height: 1px;
+  background: #cfd6dd;
+}
+
+.dispatch-chart span {
+  position: relative;
+  align-self: start;
+  top: var(--y);
+  height: var(--h);
+  border-radius: 3px;
+}
+
+.dispatch-chart .charge-bar {
+  background: #2196f3;
+}
+
+.dispatch-chart .discharge-bar {
+  background: #2dbb66;
+}
+
+.dispatch-chart .idle-bar {
+  height: 3px;
+  background: #cfd6dd;
 }
 
 .slider-row,
@@ -670,8 +772,14 @@ h2 {
   }
 
   .summary-strip,
-  .lower-grid {
+  .lower-grid,
+  .analytics-header,
+  .analytics-kpis {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .analytics-header {
+    display: grid;
   }
 }
 

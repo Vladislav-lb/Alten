@@ -46,6 +46,7 @@ class AltenEmsCard extends HTMLElement {
     this.manualChargePowerKw = 50;
     this.manualDischargePowerKw = 50;
     this.selectedBatteryId = null;
+    this.activeView = "control";
     this.planOverrides = [];
     this.backendPlanResult = null;
     this.eventsBound = false;
@@ -184,6 +185,9 @@ class AltenEmsCard extends HTMLElement {
         await this.refreshBackendState();
         await this.priceService.refresh();
       }
+      if (action === "navigate") {
+        this.activeView = id || "control";
+      }
       if (action === "auto-plan") {
         this.planOverrides = [];
         await this.optimizePlan();
@@ -284,6 +288,7 @@ class AltenEmsCard extends HTMLElement {
       planResult,
       alerts,
       selectedBatteryId: this.selectedBatteryId,
+      activeView: this.activeView,
     });
   }
 

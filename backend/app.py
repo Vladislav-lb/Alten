@@ -110,6 +110,16 @@ def root():
     }
 
 
+@app.get("/api/health")
+def health():
+    return {
+        "ok": True,
+        "status": "healthy",
+        "service": "alten-ems",
+        "time": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard():
     return """

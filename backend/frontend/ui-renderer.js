@@ -25,16 +25,16 @@ export class UIRenderer extends EventTarget {
 
   render(state) {
     this.state = state;
-    const { virtualBattery, groups, batteries, planResult, alerts, selectedBatteryId, config } = state;
+    const { virtualBattery, groups, batteries, planResult, alerts, selectedBatteryId, config, activeView = "control" } = state;
     const activeGroup = groups[0]?.group || "-- Група --";
 
     this.root.innerHTML = `
       <section class="ems-app">
         <header class="app-bar">
           <nav class="top-nav">
-            <button class="active" data-action="navigate" data-id="control">Керування</button>
-            <button data-action="navigate" data-id="monitoring">Моніторинг</button>
-            <button data-action="navigate" data-id="analytics">Аналітика</button>
+            <button class="${activeView === "control" ? "active" : ""}" data-action="navigate" data-id="control">Керування</button>
+            <button class="${activeView === "monitoring" ? "active" : ""}" data-action="navigate" data-id="monitoring">Моніторинг</button>
+            <button class="${activeView === "analytics" ? "active" : ""}" data-action="navigate" data-id="analytics">Графіки</button>
           </nav>
           <div class="app-tools">
             <button class="icon-only" data-action="refresh" title="Оновити">⌕</button>
@@ -85,8 +85,9 @@ export class UIRenderer extends EventTarget {
 
           <main class="main-stage">
             ${alerts.length ? renderAlerts(alerts) : ""}
+            ${activeView === "analytics" ? renderChartsView(planResult.plan, planResult.summary, virtualBattery) : ""}
 
-            <section class="plan-card">
+            <section class="plan-card ${activeView === "analytics" ? "view-hidden" : ""}">
               <div class="day-tab">ЗАВТРА</div>
               <div class="plan-header">
                 <h2>📊 План роботи BESS</h2>
@@ -107,7 +108,6 @@ export class UIRenderer extends EventTarget {
               </div>
 
               ${renderPlanMatrix(planResult.plan)}
-              ${renderChartPanel(planResult.plan)}
 
               <div class="settings-band">
                 ${sliderRow("Мін. маржа:", "min-margin", config.min_margin ?? 500, "грн/МВт·год", 100, 2000)}
@@ -128,7 +128,7 @@ export class UIRenderer extends EventTarget {
               </div>
             </section>
 
-            <section class="lower-grid">
+            <section class="lower-grid ${activeView === "analytics" ? "view-hidden" : ""}">
               <div class="utility-card manual-card">
                 <h2>🎮 Ручне керування</h2>
                 ${renderManualControl(selectedBatteryId, batteries)}
@@ -216,6 +216,63 @@ function renderChartPanel(plan) {
         ${barChart(entries, (entry) => entry.profit, "profit")}
       </article>
     </section>
+  `;
+}
+
+function renderChartsView(plan, summary, virtualBattery) {
+  return `
+    <section class="analytics-view">
+      <div class="analytics-header">
+        <div>
+          <h2>📈 Графіки EMS</h2>
+          <p>Ціна, SOC, потужність та прибуток за погодинним планом</p>
+        </div>
+        <div class="analytics-kpis">
+          ${analyticsKpi("Прибуток", `${formatNumber(summary.profit, 0)} ₴`)}
+          ${analyticsKpi("Заряд", `${formatNumber(summary.chargeKwh, 0)} kWh`)}
+          ${analyticsKpi("Розряд", `${formatNumber(summary.dischargeKwh, 0)} kWh`)}
+          ${analyticsKpi("SOC", `${formatNumber(summary.finalSoc || virtualBattery.soc, 0)}%`)}
+        </div>
+      </div>
+      ${renderChartPanel(plan)}
+      <div class="wide-chart">
+        <div class="chart-title">
+          <strong>Power dispatch</strong>
+          <span>Charge and discharge profile</span>
+        </div>
+        ${dispatchChart(normalizePlanSlots(plan))}
+      </div>
+    </section>
+  `;
+}
+
+function analyticsKpi(label, value) {
+  return `
+    <article>
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+    </article>
+  `;
+}
+
+function dispatchChart(entries) {
+  const values = entries.map((entry) => {
+    if (entry.mode === "charge") return -Math.abs(entry.powerKw);
+    if (entry.mode === "discharge") return Math.abs(entry.powerKw);
+    return 0;
+  });
+  const max = Math.max(...values.map((value) => Math.abs(value)), 1);
+  return `
+    <div class="dispatch-chart">
+      <div class="zero-line"></div>
+      ${values.map((value, index) => `
+        <span
+          title="${HOURS[index]}: ${formatNumber(value, 0)} kW"
+          class="${value < 0 ? "charge-bar" : value > 0 ? "discharge-bar" : "idle-bar"}"
+          style="--h:${Math.max(3, Math.abs(value) / max * 46)}%; --y:${value < 0 ? "50%" : `${50 - Math.abs(value) / max * 46}%`}"
+        ></span>
+      `).join("")}
+    </div>
   `;
 }
 
