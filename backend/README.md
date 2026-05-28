@@ -23,7 +23,7 @@ core logic can run locally, in Home Assistant add-ons, or in a cloud backend.
 ## Home Assistant SSH runtime
 
 ```bash
-cd /config/Alten/alten-ems/backend
+cd /config/Alten/backend
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt

@@ -3,7 +3,7 @@
   "name": "Alten EMS",
   "codeowners": [],
   "dependencies": [],
-  "documentation": "https://example.local/alten-ems",
+  "documentation": "https://github.com/Vladislav-lb/Alten",
   "iot_class": "local_push",
   "requirements": [],
   "version": "0.1.0"

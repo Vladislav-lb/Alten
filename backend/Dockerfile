@@ -13,7 +13,7 @@ LABEL \
   io.hass.arch="${BUILD_ARCH}" \
   org.opencontainers.image.title="Alten EMS Backend" \
   org.opencontainers.image.description="FastAPI backend for BESS EMS optimization and dispatch" \
-  org.opencontainers.image.source="https://github.com/Vladislav-lb/alten-ems" \
+  org.opencontainers.image.source="https://github.com/Vladislav-lb/Alten" \
   org.opencontainers.image.licenses="MIT"
 
 WORKDIR /app

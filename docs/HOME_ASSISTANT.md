@@ -35,7 +35,7 @@ http://192.168.110.94:8000/dashboard
 ## Backend via SSH / Terminal Add-on
 
 ```bash
-cd /config/Alten/alten-ems/backend
+cd /config/Alten/backend
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
