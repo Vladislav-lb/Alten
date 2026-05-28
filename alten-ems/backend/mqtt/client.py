@@ -15,11 +15,34 @@ class MqttTopicMap:
 class EmsMqttClient:
     """Adapter boundary for MQTT libraries such as aiomqtt or paho-mqtt."""
 
-    def __init__(self, topics: MqttTopicMap | None = None) -> None:
+    def __init__(
+        self,
+        topics: MqttTopicMap | None = None,
+        host: str | None = None,
+        port: int = 1883,
+        username: str | None = None,
+        password: str | None = None,
+    ) -> None:
         self.topics = topics or MqttTopicMap()
+        self.host = host
+        self.port = port
+        self.username = username
+        self.password = password
         self.connected = False
+        self.client = None
+        self.published: list[dict[str, Any]] = []
 
     async def connect(self) -> None:
+        if not self.host:
+            self.connected = True
+            return
+        import paho.mqtt.client as mqtt
+
+        self.client = mqtt.Client()
+        if self.username:
+            self.client.username_pw_set(self.username, self.password)
+        self.client.connect(self.host, self.port, keepalive=60)
+        self.client.loop_start()
         self.connected = True
 
     async def publish_telemetry(self, battery_id: str, payload: dict[str, Any]) -> tuple[str, str]:
@@ -55,7 +78,16 @@ class EmsMqttClient:
     async def _publish(self, topic: str, message: str, retain: bool) -> None:
         if not self.connected:
             raise RuntimeError("MQTT client is not connected")
-        _ = (topic, message, retain)
+        self.published.append({"topic": topic, "payload": message, "retain": retain})
+        if self.client is not None:
+            result = self.client.publish(topic, message, retain=retain)
+            if result.rc != 0:
+                raise RuntimeError(f"MQTT publish failed: rc={result.rc}")
 
     def diagnostics(self) -> dict[str, Any]:
-        return {"connected": self.connected, "topics": asdict(self.topics)}
+        return {
+            "connected": self.connected,
+            "host": self.host,
+            "topics": asdict(self.topics),
+            "published_count": len(self.published),
+        }

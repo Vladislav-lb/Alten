@@ -1,0 +1,61 @@
+apply_plan:
+  name: Apply plan
+  description: Send a BESS dispatch plan to the Alten EMS backend.
+  fields:
+    plan:
+      name: Plan
+      description: Plan payload to apply.
+      required: false
+      selector:
+        object:
+
+emergency_stop:
+  name: Emergency stop
+  description: Stop battery dispatch immediately.
+  fields:
+    battery_id:
+      name: Battery ID
+      required: false
+      default: batt_1
+      selector:
+        text:
+
+manual_charge:
+  name: Manual charge
+  description: Start manual battery charge.
+  fields:
+    battery_id:
+      name: Battery ID
+      required: true
+      default: batt_1
+      selector:
+        text:
+    power_kw:
+      name: Power kW
+      required: true
+      default: 50
+      selector:
+        number:
+          min: 0
+          max: 10000
+          step: 1
+
+manual_discharge:
+  name: Manual discharge
+  description: Start manual battery discharge.
+  fields:
+    battery_id:
+      name: Battery ID
+      required: true
+      default: batt_1
+      selector:
+        text:
+    power_kw:
+      name: Power kW
+      required: true
+      default: 50
+      selector:
+        number:
+          min: 0
+          max: 10000
+          step: 1

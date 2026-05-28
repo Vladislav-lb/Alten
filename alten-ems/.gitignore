@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# Runtime data
+backend/data/history/*.json
+!backend/data/history/.gitkeep
+
+# Node / frontend tooling
+node_modules/
+npm-debug.log*
+
+# Home Assistant / local secrets
+.storage/
+secrets.yaml
+.env
+*.local
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Build artifacts
+dist/
+build/
+coverage/

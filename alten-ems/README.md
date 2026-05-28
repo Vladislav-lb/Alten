@@ -1,66 +1,18 @@
 # Alten EMS Platform
 
-Industrial EMS interface for BESS fleets, designed as a modular Home Assistant
-custom card with backend-ready contracts for price optimization, MQTT, Modbus,
-REST APIs, and future cloud scaling.
+Industrial Energy Management System for BESS fleets, built for Home Assistant
+and designed to grow into a standalone EMS repository.
 
-## Frontend
+The project includes:
 
-Copy `frontend/` to a Home Assistant `www/alten-ems/` directory and register:
+- Home Assistant custom card frontend.
+- FastAPI backend for prices, batteries, planning, Modbus, MQTT, and plan history.
+- Home Assistant add-on packaging that serves both backend API and frontend UI.
+- Deterministic arbitrage optimizer with SOC protection and hourly profit.
+- Home Assistant services for operator commands.
+- Docker, CI, tests, and documentation scaffolding.
 
-```yaml
-resources:
-  - url: /local/alten-ems/alten-ems-card.js
-    type: module
-```
-
-Lovelace card example:
-
-```yaml
-type: custom:alten-ems-card
-title: Alten EMS
-reserve_soc: 15
-target_soc: 55
-price_entity: sensor.rdn_hourly_prices
-price_api_url: https://example.com/rdn/prices
-batteries:
-  - id: bess-1
-    name: BESS Block 1
-    group: main
-    site: kyiv-site
-    region: ua
-    capacityKwh: 500
-    maxChargeKw: 250
-    maxDischargeKw: 250
-    minSoc: 15
-    maxSoc: 95
-    roundtripEfficiency: 0.91
-    protocol: modbus-tcp
-    soc_entity: sensor.bess_1_soc
-    power_entity: sensor.bess_1_power
-    status_entity: sensor.bess_1_status
-services:
-  manual_control:
-    domain: script
-    service: alten_ems_manual_control
-  confirm_plan:
-    domain: script
-    service: alten_ems_confirm_plan
-  emergency_stop:
-    domain: script
-    service: alten_ems_emergency_stop
-```
-
-## Capabilities
-
-- Virtual battery aggregation with weighted SOC and max-power limits.
-- Dynamic battery enable/disable, grouping, and selection.
-- Hourly RDN price optimization with SOC reserve, max SOC, efficiency, and profit.
-- Editable hourly plan table with manual locks and CSV export.
-- Home Assistant entities, services, scripts, persistent notifications, and MQTT discovery support.
-- Backend boundaries for FastAPI, scheduler jobs, MQTT, and Modbus TCP/RS485.
-
-## Files
+## Repository Layout
 
 ```text
 frontend/
@@ -72,9 +24,171 @@ frontend/
   ui-renderer.js
   styles.css
 backend/
+  app.py
+  config.py
+  requirements.txt
+  plan_store.py
   api/
   scheduler/
   optimizer/
   mqtt/
   modbus/
+  data/
+homeassistant/
+  custom_components/alten_ems/
+  addon/
+docs/
+tests/
 ```
+
+## Quick Start Backend
+
+```bash
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+uvicorn app:app --host 0.0.0.0 --port 8000
+```
+
+Verify:
+
+```text
+http://localhost:8000
+http://localhost:8000/dashboard
+http://localhost:8000/api/prices
+http://localhost:8000/api/batteries
+```
+
+Create an optimized plan:
+
+```bash
+curl -X POST http://localhost:8000/api/plan/optimize \
+  -H "Content-Type: application/json" \
+  -d '{"min_margin":500,"reserve_soc_percent":10,"status":"draft"}'
+```
+
+## Home Assistant
+
+Frontend card:
+
+```yaml
+resources:
+  - url: http://192.168.110.94:8000/frontend/alten-ems-card.js
+    type: module
+```
+
+Card example:
+
+```yaml
+type: custom:alten-ems-card
+title: Alten EMS
+reserve_soc: 10
+price_api_url: http://192.168.110.94:8000/api/prices
+batteries:
+  - id: batt_1
+    name: ALTEN Battery 1
+    group: ALTEN
+    capacityKwh: 215
+    maxChargeKw: 125
+    maxDischargeKw: 125
+    minSoc: 10
+    maxSoc: 95
+    roundtripEfficiency: 0.92
+```
+
+Custom services are available through:
+
+```text
+homeassistant/custom_components/alten_ems
+```
+
+Services:
+
+- `alten_ems.apply_plan`
+- `alten_ems.emergency_stop`
+- `alten_ems.manual_charge`
+- `alten_ems.manual_discharge`
+
+See [Home Assistant guide](docs/HOME_ASSISTANT.md).
+
+## Optimizer
+
+The optimizer supports:
+
+- Buy during cheap hours.
+- Sell during expensive hours.
+- Minimum margin threshold.
+- Minimum SOC protection.
+- Roundtrip efficiency, default `92%`.
+- Max charge/discharge power.
+- Hourly profit calculation.
+- Plan statuses: `draft`, `confirmed`, `applied`, `failed`.
+
+Plans are stored in:
+
+```text
+backend/data/current_plan.json
+backend/data/history/
+```
+
+## Modbus and MQTT
+
+Modbus:
+
+- Read SOC.
+- Read power.
+- Write `idle`, `charge`, `discharge`.
+- Supports TCP, RS485 transport classes, and memory transport for local testing.
+
+MQTT:
+
+- Telemetry publishing.
+- Home Assistant MQTT discovery payloads.
+- Command topics.
+- Dry-run mode when no broker is configured.
+
+See [API reference](docs/API.md) and [architecture](docs/ARCHITECTURE.md).
+
+## Docker
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+Backend runs on:
+
+```text
+http://localhost:8000
+```
+
+## Tests
+
+```bash
+python3 -m unittest discover -s tests
+npm run check:frontend
+```
+
+Or:
+
+```bash
+make test
+```
+
+## Environment
+
+Copy `.env.example` to `.env` and configure:
+
+- `ALTEN_EMS_DATA_DIR`
+- `ALTEN_EMS_MQTT_HOST`
+- `ALTEN_EMS_MODBUS_HOST`
+- `ALTEN_EMS_CORS_ORIGINS`
+
+## Roadmap
+
+- Persist battery definitions in JSON or SQLite.
+- Add scheduler jobs for automatic daily planning.
+- Add WebSocket realtime updates.
+- Add Grafana/Node-RED integration examples.
+- Package Home Assistant add-on as a publishable add-on repository.

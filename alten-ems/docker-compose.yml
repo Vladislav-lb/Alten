@@ -1,0 +1,11 @@
+services:
+  alten-ems-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env.example
+    volumes:
+      - ./backend/data:/data

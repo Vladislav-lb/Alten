@@ -1,0 +1,11 @@
+{
+  "name": "alten-ems",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Industrial EMS platform for BESS fleets and Home Assistant.",
+  "type": "module",
+  "scripts": {
+    "check:frontend": "node --check frontend/alten-ems-card.js && node --check frontend/battery-manager.js && node --check frontend/ha-service.js && node --check frontend/plan-calculator.js && node --check frontend/price-service.js && node --check frontend/ui-renderer.js",
+    "serve:frontend": "python3 -m http.server 4173 --directory frontend"
+  }
+}

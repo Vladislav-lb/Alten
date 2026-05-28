@@ -48,3 +48,87 @@ class ModbusBatteryClient:
 
 def _signed_16(value: int) -> int:
     return value - 65536 if value & 0x8000 else value
+
+
+class MemoryRegisterTransport:
+    """Local test transport with the same shape as a Modbus client."""
+
+    def __init__(self, registers: dict[int, int] | None = None) -> None:
+        self.registers = registers or {}
+
+    async def read_holding_registers(self, address: int, count: int, unit: int = 1) -> list[int]:
+        _ = unit
+        return [self.registers.get(address + offset, 0) for offset in range(count)]
+
+    async def write_register(self, address: int, value: int, unit: int = 1) -> None:
+        _ = unit
+        self.registers[address] = value
+
+
+class PymodbusTcpTransport:
+    """Modbus TCP transport for real battery gateways."""
+
+    def __init__(self, host: str, port: int = 502) -> None:
+        self.host = host
+        self.port = port
+        self.client = None
+
+    async def connect(self) -> None:
+        from pymodbus.client import AsyncModbusTcpClient
+
+        self.client = AsyncModbusTcpClient(self.host, port=self.port)
+        await self.client.connect()
+
+    async def read_holding_registers(self, address: int, count: int, unit: int = 1) -> list[int]:
+        if self.client is None:
+            await self.connect()
+        result = await self.client.read_holding_registers(address=address, count=count, slave=unit)
+        if result.isError():
+            raise RuntimeError(f"Modbus TCP read failed at {address}")
+        return list(result.registers)
+
+    async def write_register(self, address: int, value: int, unit: int = 1) -> None:
+        if self.client is None:
+            await self.connect()
+        result = await self.client.write_register(address=address, value=value, slave=unit)
+        if result.isError():
+            raise RuntimeError(f"Modbus TCP write failed at {address}")
+
+
+class PymodbusSerialTransport:
+    """Modbus RS485 transport for USB/serial gateways."""
+
+    def __init__(self, port: str, baudrate: int = 9600, parity: str = "N", stopbits: int = 1, bytesize: int = 8) -> None:
+        self.port = port
+        self.baudrate = baudrate
+        self.parity = parity
+        self.stopbits = stopbits
+        self.bytesize = bytesize
+        self.client = None
+
+    async def connect(self) -> None:
+        from pymodbus.client import AsyncModbusSerialClient
+
+        self.client = AsyncModbusSerialClient(
+            port=self.port,
+            baudrate=self.baudrate,
+            parity=self.parity,
+            stopbits=self.stopbits,
+            bytesize=self.bytesize,
+        )
+        await self.client.connect()
+
+    async def read_holding_registers(self, address: int, count: int, unit: int = 1) -> list[int]:
+        if self.client is None:
+            await self.connect()
+        result = await self.client.read_holding_registers(address=address, count=count, slave=unit)
+        if result.isError():
+            raise RuntimeError(f"Modbus RS485 read failed at {address}")
+        return list(result.registers)
+
+    async def write_register(self, address: int, value: int, unit: int = 1) -> None:
+        if self.client is None:
+            await self.connect()
+        result = await self.client.write_register(address=address, value=value, slave=unit)
+        if result.isError():
+            raise RuntimeError(f"Modbus RS485 write failed at {address}")
