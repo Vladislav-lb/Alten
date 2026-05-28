@@ -129,7 +129,7 @@ def dashboard():
         <style>
           body {
             margin: 0;
-            background: #f3f3f3;
+            background: #15181d;
           }
         </style>
       </head>

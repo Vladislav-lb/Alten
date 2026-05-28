@@ -1008,3 +1008,570 @@ h2 {
     grid-template-columns: 1fr;
   }
 }
+
+/* Responsive industrial polish */
+:host {
+  --ems-bg: #15181d;
+  --ems-panel: #20252b;
+  --ems-panel-soft: #252b32;
+  --ems-panel-raised: #2a3038;
+  --ems-border: #3a434d;
+  --ems-border-soft: #303841;
+  --ems-text: #edf3f8;
+  --ems-muted: #9aa8b5;
+  --ems-cyan: #32bdf2;
+  --ems-blue: #258ee8;
+  --ems-green: #55c783;
+  --ems-red: #ef5350;
+  --ems-amber: #f3b94e;
+  --ems-shadow: 0 16px 34px rgba(0, 0, 0, 0.28);
+  color: var(--ems-text);
+}
+
+button,
+input,
+select {
+  border-color: var(--ems-border);
+  background: #171b20;
+  color: var(--ems-text);
+}
+
+button {
+  min-height: 34px;
+  border-radius: 6px;
+  font-weight: 700;
+}
+
+button:hover {
+  border-color: var(--ems-cyan);
+  box-shadow: 0 0 0 2px rgba(50, 189, 242, 0.18);
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid rgba(50, 189, 242, 0.75);
+  outline-offset: 2px;
+}
+
+input,
+select {
+  min-height: 34px;
+}
+
+input::placeholder {
+  color: #71808d;
+}
+
+.ems-app {
+  width: 100%;
+  min-height: 100dvh;
+  overflow: clip;
+  border-color: #202830;
+  background:
+    linear-gradient(180deg, #111418 0, var(--ems-bg) 260px),
+    var(--ems-bg);
+}
+
+.app-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  height: 50px;
+  background: #0f151a;
+  border-bottom: 1px solid rgba(50, 189, 242, 0.6);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.3);
+}
+
+.top-nav {
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.top-nav button {
+  min-width: 118px;
+  height: 50px;
+  color: #b8c9d6;
+}
+
+.top-nav button.active {
+  color: #ffffff;
+  background: rgba(50, 189, 242, 0.12);
+  box-shadow: inset 0 -3px 0 var(--ems-cyan);
+}
+
+.app-tools {
+  flex: 0 0 auto;
+}
+
+.icon-only {
+  display: grid;
+  place-items: center;
+  color: var(--ems-text);
+}
+
+.user-dot {
+  background: linear-gradient(135deg, var(--ems-cyan), var(--ems-amber));
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
+}
+
+.workspace {
+  grid-template-columns: minmax(238px, 286px) minmax(0, 1fr);
+  min-height: calc(100dvh - 50px);
+}
+
+.control-sidebar {
+  background: #171c22;
+  border-right-color: var(--ems-border-soft);
+  box-shadow: 8px 0 22px rgba(0, 0, 0, 0.24);
+}
+
+.side-section {
+  border-bottom-color: var(--ems-border-soft);
+}
+
+.side-title,
+.tree-node,
+h2,
+.chart-title strong,
+.summary-item strong,
+.side-metric strong,
+.analytics-kpis strong,
+.sensor-grid strong,
+.soc-ring strong {
+  color: var(--ems-text);
+}
+
+.side-section h3,
+.summary-item span,
+.analytics-header p,
+.monitoring-header p,
+.analytics-kpis span,
+.battery-monitor-head span,
+.battery-config-grid span,
+.sensor-grid span,
+.chart-title span,
+.manual-grid label,
+.slider-row,
+.check-row,
+.status-body {
+  color: var(--ems-muted);
+}
+
+.segmented button.active,
+.save-button {
+  border-color: var(--ems-green);
+  background: linear-gradient(180deg, #5ad18a, #289f5b);
+  color: #08130d;
+}
+
+.segmented button.active {
+  border-color: var(--ems-cyan);
+  background: linear-gradient(180deg, #3dc8f5, #1787d7);
+  color: #061018;
+}
+
+.delete-button {
+  border-color: var(--ems-red);
+  background: linear-gradient(180deg, #ff6a66, #d83d3a);
+  color: #ffffff;
+}
+
+.search-input,
+.group-tools select,
+.date-picker input,
+.manual-grid input,
+.manual-grid select,
+.battery-config-grid input,
+.plan-matrix input {
+  width: 100%;
+  background: #151a20;
+}
+
+.side-metric,
+.summary-strip,
+.settings-band,
+.analytics-kpis article,
+.sensor-grid div,
+.status-card,
+.manual-card {
+  border-color: var(--ems-border-soft);
+  background: var(--ems-panel-soft);
+}
+
+.main-stage {
+  padding: clamp(8px, 1.2vw, 16px);
+}
+
+.plan-card,
+.utility-card,
+.analytics-header,
+.monitoring-header,
+.wide-chart,
+.chart-panel article,
+.battery-monitor-card,
+.battery-config-card,
+.sensor-table-card {
+  border-color: var(--ems-border);
+  background: var(--ems-panel);
+  box-shadow: var(--ems-shadow);
+}
+
+.plan-card {
+  border-color: rgba(50, 189, 242, 0.8);
+}
+
+.day-tab {
+  background: linear-gradient(180deg, #39c4f5, #1e7fe2);
+  color: #061018;
+}
+
+.plan-header,
+.monitoring-header,
+.analytics-header {
+  align-items: stretch;
+}
+
+.plan-toolbar,
+.command-row {
+  flex-wrap: wrap;
+}
+
+.plan-toolbar button,
+.command-row button,
+.side-actions button,
+.group-tools button,
+.manual-grid button,
+.battery-card-actions button {
+  white-space: nowrap;
+}
+
+.summary-strip {
+  grid-template-columns: repeat(4, minmax(130px, 1fr));
+  overflow: hidden;
+}
+
+.matrix-wrap,
+.sensor-table-wrap {
+  border-color: var(--ems-border);
+  border-radius: 8px;
+  background: #171b20;
+  scrollbar-width: thin;
+}
+
+.plan-matrix {
+  min-width: 1280px;
+}
+
+.plan-matrix th,
+.plan-matrix td,
+.sensor-table th,
+.sensor-table td {
+  border-color: var(--ems-border-soft);
+  color: var(--ems-text);
+}
+
+.plan-matrix thead th,
+.sensor-table th {
+  background: #1a2027;
+  color: #d8e8f2;
+}
+
+.plan-matrix tbody th {
+  color: #e7f1f8;
+}
+
+.price-row {
+  background: rgba(243, 185, 78, 0.12);
+}
+
+.buy-row,
+.soc-row {
+  background: rgba(50, 189, 242, 0.09);
+}
+
+.sell-row,
+.profit-row {
+  background: rgba(85, 199, 131, 0.1);
+}
+
+.action-row {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.total-row {
+  background: #1b2026;
+}
+
+.analytics-kpis {
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  min-width: min(620px, 100%);
+}
+
+.battery-monitor-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 310px), 1fr));
+}
+
+.battery-config-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+}
+
+.battery-monitor-card.online {
+  border-color: rgba(85, 199, 131, 0.75);
+}
+
+.battery-monitor-card.offline {
+  border-color: rgba(239, 83, 80, 0.7);
+}
+
+.online-pill {
+  background: rgba(85, 199, 131, 0.16);
+  color: #83e6a9 !important;
+}
+
+.offline .online-pill {
+  background: rgba(239, 83, 80, 0.14);
+  color: #ffaaa7 !important;
+}
+
+.soc-ring {
+  background:
+    radial-gradient(circle at center, var(--ems-panel) 0 58%, transparent 59%),
+    conic-gradient(var(--ems-cyan) var(--soc), #3a434d 0);
+}
+
+.lower-grid {
+  grid-template-columns: minmax(300px, 390px) minmax(0, 1fr);
+}
+
+.alert {
+  border-color: rgba(243, 185, 78, 0.7);
+  background: rgba(243, 185, 78, 0.14);
+  color: #ffd98b;
+}
+
+.alert.critical {
+  border-color: rgba(239, 83, 80, 0.75);
+  background: rgba(239, 83, 80, 0.13);
+  color: #ffb1ad;
+}
+
+.empty-state {
+  color: var(--ems-muted);
+}
+
+@media (max-width: 1180px) {
+  .ems-app {
+    min-height: 100dvh;
+  }
+
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .control-sidebar {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(190px, 1fr));
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--ems-border-soft);
+  }
+
+  .side-section {
+    min-width: 190px;
+    border-right: 1px solid var(--ems-border-soft);
+    border-bottom: 0;
+  }
+
+  .battery-tree {
+    min-height: auto;
+  }
+
+  .analytics-header,
+  .monitoring-header {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .summary-strip,
+  .lower-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 820px) {
+  :host {
+    font-size: 12px;
+  }
+
+  .ems-app {
+    border-width: 0;
+  }
+
+  .app-bar {
+    height: auto;
+    flex-wrap: wrap;
+  }
+
+  .top-nav {
+    width: 100%;
+  }
+
+  .top-nav button {
+    flex: 1 0 112px;
+    height: 46px;
+  }
+
+  .app-tools {
+    width: 100%;
+    justify-content: flex-end;
+    min-height: 40px;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+  .workspace {
+    min-height: auto;
+  }
+
+  .control-sidebar {
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
+
+  .main-stage {
+    padding: 8px;
+  }
+
+  .plan-card {
+    padding: 36px 10px 10px;
+  }
+
+  .plan-header,
+  .status-header,
+  .chart-title {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .plan-toolbar,
+  .command-row,
+  .battery-card-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .summary-strip,
+  .lower-grid,
+  .chart-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-band {
+    gap: 12px;
+  }
+
+  .slider-row,
+  .check-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .manual-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .manual-grid label {
+    grid-template-columns: 1fr;
+  }
+
+  .manual-grid button {
+    width: 100%;
+  }
+
+  .plan-matrix {
+    min-width: 980px;
+  }
+
+  .plan-matrix th:first-child,
+  .plan-matrix td:first-child {
+    width: 118px;
+    min-width: 118px;
+  }
+
+  .sensor-table {
+    min-width: 760px;
+  }
+}
+
+@media (max-width: 540px) {
+  .top-nav button {
+    min-width: 0;
+    flex-basis: 33.333%;
+    padding: 0 6px;
+  }
+
+  .control-sidebar {
+    grid-template-columns: 1fr;
+  }
+
+  .side-section {
+    min-width: 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--ems-border-soft);
+  }
+
+  .segmented,
+  .side-actions,
+  .metric-grid,
+  .analytics-kpis,
+  .sensor-grid,
+  .plan-toolbar,
+  .command-row,
+  .battery-card-actions,
+  .group-tools {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-strip {
+    padding: 10px;
+  }
+
+  .battery-monitor-card,
+  .battery-config-card,
+  .sensor-table-card,
+  .analytics-header,
+  .monitoring-header,
+  .wide-chart,
+  .utility-card {
+    padding: 12px;
+  }
+
+  .soc-ring {
+    width: 96px;
+    height: 96px;
+  }
+
+  .soc-ring strong {
+    font-size: 21px;
+  }
+
+  .soc-ring span {
+    margin-top: 36px;
+  }
+
+  .plan-matrix {
+    min-width: 860px;
+  }
+
+  .plan-matrix th,
+  .plan-matrix td {
+    height: 30px;
+    padding: 4px;
+    font-size: 11px;
+  }
+
+  .plan-matrix input {
+    width: 36px;
+  }
+}
