@@ -103,10 +103,15 @@ export function normalizeBackendBatteries(payload = []) {
     roundtripEfficiency: Number(battery.roundtripEfficiency ?? battery.efficiency_percent / 100 ?? 0.92),
     protocol: battery.protocol || "backend",
     telemetry: {
-      soc: Number(battery.soc ?? battery.soc_percent ?? 50),
-      powerKw: Number(battery.powerKw ?? battery.power_kw ?? 0),
-      status: battery.status || "idle",
-      lastSeen: new Date().toISOString(),
+      soc: Number(battery.telemetry?.soc ?? battery.telemetry?.soc_percent ?? battery.soc ?? battery.soc_percent ?? 50),
+      powerKw: Number(battery.telemetry?.power_kw ?? battery.telemetry?.powerKw ?? battery.powerKw ?? battery.power_kw ?? 0),
+      voltage: numberOrNull(battery.telemetry?.voltage_v ?? battery.telemetry?.voltage),
+      current: numberOrNull(battery.telemetry?.current_a ?? battery.telemetry?.current),
+      temperature: numberOrNull(battery.telemetry?.temperature_c ?? battery.telemetry?.temperature),
+      status: battery.telemetry?.status || battery.status || "idle",
+      source: battery.telemetry?.source || battery.protocol || "backend",
+      lastSeen: battery.telemetry?.last_seen || battery.telemetry?.lastSeen || null,
+      online: battery.online !== false,
     },
   })).filter((battery) => battery.id && battery.capacityKwh > 0);
 }
@@ -167,4 +172,9 @@ function summarizePlan(plan = []) {
 
 function ensureTrailingSlash(url) {
   return url.endsWith("/") ? url : `${url}/`;
+}
+
+function numberOrNull(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }

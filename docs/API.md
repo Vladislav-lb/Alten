@@ -11,6 +11,54 @@ http://localhost:8000
 - `GET /` returns backend status.
 - `GET /api/prices` returns 24 hourly prices.
 - `GET /api/batteries` returns configured BESS assets.
+- `GET /api/batteries/{battery_id}` returns one BESS asset with live telemetry.
+- `POST /api/batteries` creates or updates a battery definition.
+- `POST /api/batteries/{battery_id}/telemetry` ingests external telemetry.
+
+Example real battery configuration:
+
+```json
+{
+  "id": "batt_1",
+  "name": "ALTEN Battery 1",
+  "group": "ALTEN",
+  "capacity_kwh": 215,
+  "max_charge_kw": 125,
+  "max_discharge_kw": 125,
+  "min_soc_percent": 10,
+  "max_soc_percent": 95,
+  "efficiency_percent": 92,
+  "protocol": "home_assistant",
+  "connection": {"type": "home_assistant"},
+  "sensors": {
+    "soc": "sensor.battery_soc",
+    "power": "sensor.battery_power",
+    "voltage": "sensor.battery_voltage",
+    "current": "sensor.battery_current",
+    "temperature": "sensor.battery_temperature",
+    "status": "sensor.battery_status"
+  }
+}
+```
+
+Modbus TCP battery configuration:
+
+```json
+{
+  "id": "batt_modbus_1",
+  "name": "Modbus Battery 1",
+  "capacity_kwh": 215,
+  "max_charge_kw": 125,
+  "max_discharge_kw": 125,
+  "protocol": "modbus_tcp",
+  "connection": {
+    "type": "modbus_tcp",
+    "host": "192.168.110.50",
+    "port": 502,
+    "unit": 1
+  }
+}
+```
 
 ## Plan Lifecycle
 

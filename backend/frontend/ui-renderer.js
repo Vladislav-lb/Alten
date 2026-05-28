@@ -86,8 +86,9 @@ export class UIRenderer extends EventTarget {
           <main class="main-stage">
             ${alerts.length ? renderAlerts(alerts) : ""}
             ${activeView === "analytics" ? renderChartsView(planResult.plan, planResult.summary, virtualBattery) : ""}
+            ${activeView === "monitoring" ? renderMonitoringView(batteries, virtualBattery) : ""}
 
-            <section class="plan-card ${activeView === "analytics" ? "view-hidden" : ""}">
+            <section class="plan-card ${activeView !== "control" ? "view-hidden" : ""}">
               <div class="day-tab">ЗАВТРА</div>
               <div class="plan-header">
                 <h2>📊 План роботи BESS</h2>
@@ -128,7 +129,7 @@ export class UIRenderer extends EventTarget {
               </div>
             </section>
 
-            <section class="lower-grid ${activeView === "analytics" ? "view-hidden" : ""}">
+            <section class="lower-grid ${activeView !== "control" ? "view-hidden" : ""}">
               <div class="utility-card manual-card">
                 <h2>🎮 Ручне керування</h2>
                 ${renderManualControl(selectedBatteryId, batteries)}
@@ -243,6 +244,113 @@ function renderChartsView(plan, summary, virtualBattery) {
         ${dispatchChart(normalizePlanSlots(plan))}
       </div>
     </section>
+  `;
+}
+
+function renderMonitoringView(batteries, virtualBattery) {
+  const enabled = batteries.filter((battery) => battery.enabled);
+  const online = batteries.filter((battery) => battery.telemetry?.online !== false && battery.telemetry?.lastSeen).length;
+  const totalPower = batteries.reduce((sum, battery) => sum + (Number(battery.telemetry?.powerKw) || 0), 0);
+  return `
+    <section class="monitoring-view">
+      <div class="monitoring-header">
+        <div>
+          <h2>📟 Моніторинг батарей</h2>
+          <p>Реальні сенсори Home Assistant / Modbus / MQTT для BESS</p>
+        </div>
+        <div class="analytics-kpis">
+          ${analyticsKpi("Онлайн", `${online}/${batteries.length}`)}
+          ${analyticsKpi("Активні", `${enabled.length}`)}
+          ${analyticsKpi("Потужність", `${formatNumber(totalPower, 1)} kW`)}
+          ${analyticsKpi("Virtual SOC", `${formatNumber(virtualBattery.soc, 1)}%`)}
+        </div>
+      </div>
+      <div class="battery-monitor-grid">
+        ${batteries.map(renderBatteryMonitorCard).join("") || emptyState("Немає підключених батарей")}
+      </div>
+      <div class="sensor-table-card">
+        <div class="chart-title">
+          <strong>Сенсори батарей</strong>
+          <span>Останні отримані значення</span>
+        </div>
+        ${renderSensorTable(batteries)}
+      </div>
+    </section>
+  `;
+}
+
+function renderBatteryMonitorCard(battery) {
+  const telemetry = battery.telemetry || {};
+  const isOnline = telemetry.online !== false && Boolean(telemetry.lastSeen);
+  return `
+    <article class="battery-monitor-card ${isOnline ? "online" : "offline"}">
+      <div class="battery-monitor-head">
+        <div>
+          <strong>${escapeHtml(battery.name)}</strong>
+          <span>${escapeHtml(battery.group)} | ${escapeHtml(battery.protocol)}</span>
+        </div>
+        <span class="online-pill">${isOnline ? "online" : "waiting"}</span>
+      </div>
+      <div class="soc-ring" style="--soc:${Math.max(0, Math.min(100, Number(telemetry.soc) || 0))}%">
+        <strong>${formatNumber(telemetry.soc, 0)}%</strong>
+        <span>SOC</span>
+      </div>
+      <div class="sensor-grid">
+        ${sensorValue("Power", `${formatNumber(telemetry.powerKw, 1)} kW`)}
+        ${sensorValue("Voltage", telemetry.voltage == null ? "n/a" : `${formatNumber(telemetry.voltage, 1)} V`)}
+        ${sensorValue("Current", telemetry.current == null ? "n/a" : `${formatNumber(telemetry.current, 1)} A`)}
+        ${sensorValue("Temp", telemetry.temperature == null ? "n/a" : `${formatNumber(telemetry.temperature, 1)} °C`)}
+        ${sensorValue("Status", telemetry.status || "unknown")}
+        ${sensorValue("Source", telemetry.source || "backend")}
+      </div>
+    </article>
+  `;
+}
+
+function renderSensorTable(batteries) {
+  return `
+    <div class="sensor-table-wrap">
+      <table class="sensor-table">
+        <thead>
+          <tr>
+            <th>Battery</th>
+            <th>SOC</th>
+            <th>Power</th>
+            <th>Voltage</th>
+            <th>Current</th>
+            <th>Temp</th>
+            <th>Status</th>
+            <th>Last seen</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${batteries.map((battery) => {
+            const telemetry = battery.telemetry || {};
+            return `
+              <tr>
+                <td>${escapeHtml(battery.name)}</td>
+                <td>${formatNumber(telemetry.soc, 1)}%</td>
+                <td>${formatNumber(telemetry.powerKw, 1)} kW</td>
+                <td>${telemetry.voltage == null ? "n/a" : `${formatNumber(telemetry.voltage, 1)} V`}</td>
+                <td>${telemetry.current == null ? "n/a" : `${formatNumber(telemetry.current, 1)} A`}</td>
+                <td>${telemetry.temperature == null ? "n/a" : `${formatNumber(telemetry.temperature, 1)} °C`}</td>
+                <td>${escapeHtml(telemetry.status || "unknown")}</td>
+                <td>${telemetry.lastSeen ? escapeHtml(new Date(telemetry.lastSeen).toLocaleString()) : "waiting"}</td>
+              </tr>
+            `;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function sensorValue(label, value) {
+  return `
+    <div>
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+    </div>
   `;
 }
 

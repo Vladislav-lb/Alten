@@ -1,5 +1,5 @@
 name: Alten EMS Backend
-version: "0.1.1"
+version: "0.1.2"
 slug: alten_ems_backend
 description: FastAPI backend for BESS optimization, Modbus, MQTT, and Home Assistant EMS services.
 url: https://github.com/Vladislav-lb/Alten
@@ -10,6 +10,7 @@ arch:
 startup: services
 boot: auto
 init: false
+homeassistant_api: true
 watchdog: http://[HOST]:[PORT:8000]/api/health
 webui: http://[HOST]:[PORT:8000]/dashboard
 ports:
@@ -28,6 +29,7 @@ options:
   modbus_host: ""
   modbus_port: 502
   modbus_unit: 1
+  ha_url: http://supervisor/core/api
 schema:
   cors_origins: str
   mqtt_host: str
@@ -37,3 +39,4 @@ schema:
   modbus_host: str
   modbus_port: int
   modbus_unit: int
+  ha_url: str

@@ -18,6 +18,8 @@ class Settings:
     modbus_host: str | None
     modbus_port: int
     modbus_unit: int
+    ha_url: str | None
+    ha_token: str | None
 
 
 def load_settings() -> Settings:
@@ -33,6 +35,8 @@ def load_settings() -> Settings:
         modbus_host=empty_to_none(os.getenv("ALTEN_EMS_MODBUS_HOST")),
         modbus_port=int(os.getenv("ALTEN_EMS_MODBUS_PORT", "502")),
         modbus_unit=int(os.getenv("ALTEN_EMS_MODBUS_UNIT", "1")),
+        ha_url=empty_to_none(os.getenv("ALTEN_EMS_HA_URL", "http://supervisor/core/api")),
+        ha_token=empty_to_none(os.getenv("ALTEN_EMS_HA_TOKEN") or os.getenv("SUPERVISOR_TOKEN")),
     )
 
 

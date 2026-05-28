@@ -14,6 +14,7 @@ const DEFAULT_CONFIG = Object.freeze({
   efficiency: 92,
   use_min_soc: false,
   use_backend_optimizer: true,
+  telemetry_refresh_ms: 10000,
   batteries: [
     {
       id: "bess-1",
@@ -49,6 +50,7 @@ class AltenEmsCard extends HTMLElement {
     this.activeView = "control";
     this.planOverrides = [];
     this.backendPlanResult = null;
+    this.telemetryTimer = null;
     this.eventsBound = false;
     this.batteryManager = new BatteryManager({ batteries: DEFAULT_CONFIG.batteries });
     this.planCalculator = new PlanCalculator();
@@ -70,13 +72,28 @@ class AltenEmsCard extends HTMLElement {
     this.bindEvents();
     this.priceService.startAutoRefresh();
     await this.refreshBackendState();
+    this.startTelemetryRefresh();
     this.priceService.refresh().catch((error) => this.addAlert(error.message, "warning"));
     this.render();
   }
 
   disconnectedCallback() {
     this.priceService.stopAutoRefresh();
+    this.stopTelemetryRefresh();
     this.renderer.unmount();
+  }
+
+  startTelemetryRefresh() {
+    this.stopTelemetryRefresh();
+    const refreshMs = Number(this.config.telemetry_refresh_ms) || 10000;
+    this.telemetryTimer = setInterval(() => {
+      this.refreshBackendState().catch((error) => this.addAlert(error.message, "warning"));
+    }, refreshMs);
+  }
+
+  stopTelemetryRefresh() {
+    if (this.telemetryTimer) clearInterval(this.telemetryTimer);
+    this.telemetryTimer = null;
   }
 
   setConfig(config) {

@@ -11,6 +11,7 @@ env/
 # Runtime data
 backend/data/history/*.json
 !backend/data/history/.gitkeep
+!backend/data/batteries.json
 
 # Node / frontend tooling
 node_modules/

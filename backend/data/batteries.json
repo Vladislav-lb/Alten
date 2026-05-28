@@ -1,0 +1,35 @@
+[
+  {
+    "id": "batt_1",
+    "name": "ALTEN Battery 1",
+    "group": "ALTEN",
+    "site": "site_1",
+    "region": "ua",
+    "enabled": true,
+    "capacity_kwh": 215,
+    "max_charge_kw": 125,
+    "max_discharge_kw": 125,
+    "min_soc_percent": 10,
+    "max_soc_percent": 95,
+    "soc_percent": 50,
+    "power_kw": 0,
+    "efficiency_percent": 92,
+    "protocol": "home_assistant",
+    "connection": {
+      "type": "home_assistant"
+    },
+    "sensors": {
+      "soc": "",
+      "power": "",
+      "voltage": "",
+      "current": "",
+      "temperature": "",
+      "status": ""
+    },
+    "telemetry": {
+      "soc": 50,
+      "power_kw": 0,
+      "status": "idle"
+    }
+  }
+]

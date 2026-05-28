@@ -503,12 +503,14 @@ h2 {
   margin-top: 10px;
 }
 
-.analytics-view {
+.analytics-view,
+.monitoring-view {
   display: grid;
   gap: 12px;
 }
 
 .analytics-header,
+.monitoring-header,
 .wide-chart {
   border: 1px solid #d9dee3;
   border-radius: 8px;
@@ -523,7 +525,15 @@ h2 {
   gap: 14px;
 }
 
-.analytics-header p {
+.monitoring-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.analytics-header p,
+.monitoring-header p {
   margin: 5px 0 0;
   color: #7b8792;
 }
@@ -556,6 +566,142 @@ h2 {
   margin-top: 5px;
   color: #1e2933;
   font-size: 16px;
+}
+
+.battery-monitor-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.battery-monitor-card,
+.sensor-table-card {
+  border: 1px solid #d9dee3;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.battery-monitor-card.online {
+  border-color: #7fd8a3;
+}
+
+.battery-monitor-card.offline {
+  border-color: #efc0c0;
+}
+
+.battery-monitor-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.battery-monitor-head strong,
+.battery-monitor-head span {
+  display: block;
+}
+
+.battery-monitor-head span {
+  margin-top: 3px;
+  color: #7b8792;
+  font-size: 11px;
+}
+
+.online-pill {
+  min-width: 58px;
+  border-radius: 999px;
+  background: #e8f8ee;
+  color: #20834d !important;
+  padding: 4px 8px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.offline .online-pill {
+  background: #fff0f0;
+  color: #b73a3a !important;
+}
+
+.soc-ring {
+  width: 112px;
+  height: 112px;
+  margin: 14px auto;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at center, #ffffff 0 58%, transparent 59%),
+    conic-gradient(#2196f3 var(--soc), #e5ebf0 0);
+  display: grid;
+  place-items: center;
+}
+
+.soc-ring strong,
+.soc-ring span {
+  grid-area: 1 / 1;
+}
+
+.soc-ring strong {
+  color: #1e2933;
+  font-size: 24px;
+}
+
+.soc-ring span {
+  margin-top: 42px;
+  color: #7b8792;
+  font-size: 11px;
+}
+
+.sensor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.sensor-grid div {
+  border: 1px solid #edf0f3;
+  border-radius: 6px;
+  background: #f8fafc;
+  padding: 8px;
+}
+
+.sensor-grid span,
+.sensor-grid strong {
+  display: block;
+}
+
+.sensor-grid span {
+  color: #7b8792;
+  font-size: 11px;
+}
+
+.sensor-grid strong {
+  margin-top: 4px;
+  color: #1e2933;
+}
+
+.sensor-table-wrap {
+  overflow: auto;
+}
+
+.sensor-table {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: collapse;
+}
+
+.sensor-table th,
+.sensor-table td {
+  border-bottom: 1px solid #e3e7eb;
+  padding: 9px;
+  text-align: left;
+}
+
+.sensor-table th {
+  background: #f4f6f8;
+  color: #52606d;
+  font-size: 11px;
+  text-transform: uppercase;
 }
 
 .chart-panel article {
@@ -774,11 +920,14 @@ h2 {
   .summary-strip,
   .lower-grid,
   .analytics-header,
-  .analytics-kpis {
+  .monitoring-header,
+  .analytics-kpis,
+  .battery-monitor-grid {
     grid-template-columns: 1fr 1fr;
   }
 
-  .analytics-header {
+  .analytics-header,
+  .monitoring-header {
     display: grid;
   }
 }
@@ -797,7 +946,8 @@ h2 {
   .workspace,
   .summary-strip,
   .lower-grid,
-  .chart-panel {
+  .chart-panel,
+  .battery-monitor-grid {
     grid-template-columns: 1fr;
   }
 

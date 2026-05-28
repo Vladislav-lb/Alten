@@ -37,6 +37,7 @@ if [ -f "$OPTIONS_FILE" ]; then
   export ALTEN_EMS_MODBUS_HOST="$(read_option modbus_host "")"
   export ALTEN_EMS_MODBUS_PORT="$(read_option modbus_port "502")"
   export ALTEN_EMS_MODBUS_UNIT="$(read_option modbus_unit "1")"
+  export ALTEN_EMS_HA_URL="$(read_option ha_url "http://supervisor/core/api")"
 fi
 
 mkdir -p /data/history

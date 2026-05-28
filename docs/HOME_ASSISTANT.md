@@ -47,6 +47,42 @@ The add-on Web UI also serves a standalone dashboard:
 http://192.168.110.94:8000/dashboard
 ```
 
+## Connecting a Real Battery
+
+After the add-on is running, configure a battery with existing Home Assistant
+sensors:
+
+```bash
+curl -X POST http://192.168.110.94:8000/api/batteries \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "batt_1",
+    "name": "ALTEN Battery 1",
+    "group": "ALTEN",
+    "capacity_kwh": 215,
+    "max_charge_kw": 125,
+    "max_discharge_kw": 125,
+    "min_soc_percent": 10,
+    "max_soc_percent": 95,
+    "efficiency_percent": 92,
+    "protocol": "home_assistant",
+    "connection": {"type": "home_assistant"},
+    "sensors": {
+      "soc": "sensor.battery_soc",
+      "power": "sensor.battery_power",
+      "voltage": "sensor.battery_voltage",
+      "current": "sensor.battery_current",
+      "temperature": "sensor.battery_temperature",
+      "status": "sensor.battery_status"
+    }
+  }'
+```
+
+Replace the `sensor.battery_*` entity ids with the real entities from your Home
+Assistant instance. The Monitoring tab reads `/api/batteries` every 10 seconds
+and displays SOC, power, voltage, current, temperature, status, source, and last
+seen time.
+
 ## Backend via SSH / Terminal Add-on
 
 ```bash

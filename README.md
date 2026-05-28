@@ -9,6 +9,8 @@ The project includes:
 - FastAPI backend for prices, batteries, planning, Modbus, MQTT, and plan history.
 - Home Assistant add-on packaging that serves both backend API and frontend UI.
 - Frontend API client and chart panel for price, SOC, and hourly profit.
+- Real battery monitoring through Home Assistant entity sensors, Modbus TCP,
+  MQTT telemetry ingest, and `/api/batteries`.
 - Deterministic arbitrage optimizer with SOC protection and hourly profit.
 - Home Assistant services for operator commands.
 - Docker, CI, tests, and documentation scaffolding.

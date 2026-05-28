@@ -8,11 +8,13 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from battery_store import BatteryStore
 from config import load_settings
 from modbus.client import MemoryRegisterTransport, ModbusBatteryClient, PymodbusTcpTransport
 from mqtt.client import EmsMqttClient
 from optimizer.arbitrage import BatteryEnvelope, PriceSlot, optimize_arbitrage
 from plan_store import PlanStore
+from sensors import HomeAssistantSensorClient
 
 settings = load_settings()
 app = FastAPI(title="Alten EMS Backend")
@@ -23,6 +25,7 @@ mqtt_client = EmsMqttClient(
     username=settings.mqtt_username,
     password=settings.mqtt_password,
 )
+ha_sensor_client = HomeAssistantSensorClient(settings.ha_url, settings.ha_token)
 
 app.add_middleware(
     CORSMiddleware,
@@ -48,6 +51,10 @@ DEFAULT_BATTERIES = [
     {
         "id": "batt_1",
         "name": "ALTEN Battery 1",
+        "group": "ALTEN",
+        "site": "site_1",
+        "region": "ua",
+        "enabled": True,
         "capacity_kwh": 215,
         "max_charge_kw": 125,
         "max_discharge_kw": 125,
@@ -55,11 +62,27 @@ DEFAULT_BATTERIES = [
         "max_soc_percent": 95,
         "soc_percent": 50,
         "power_kw": 0,
-        "efficiency_percent": 92
+        "efficiency_percent": 92,
+        "protocol": "home_assistant",
+        "connection": {"type": "home_assistant"},
+        "sensors": {
+            "soc": "",
+            "power": "",
+            "voltage": "",
+            "current": "",
+            "temperature": "",
+            "status": ""
+        },
+        "telemetry": {
+            "soc": 50,
+            "power_kw": 0,
+            "status": "idle"
+        }
     }
 ]
 
 modbus_clients = {}
+battery_store = BatteryStore(settings.data_dir, DEFAULT_BATTERIES)
 
 
 class BatteryModel(BaseModel):
@@ -97,6 +120,11 @@ class ManualCommand(BaseModel):
 class MqttPublishRequest(BaseModel):
     battery_id: str = "batt_1"
     payload: dict[str, Any]
+
+
+class TelemetryIngestRequest(BaseModel):
+    battery_id: str = "batt_1"
+    telemetry: dict[str, Any]
 
 
 @app.get("/")
@@ -150,8 +178,33 @@ def get_prices():
 
 
 @app.get("/api/batteries")
-def get_batteries():
-    return DEFAULT_BATTERIES
+async def get_batteries():
+    return await get_batteries_with_telemetry()
+
+
+@app.get("/api/batteries/{battery_id}")
+async def get_battery(battery_id: str):
+    battery = battery_store.get(battery_id)
+    if battery is None:
+        raise HTTPException(status_code=404, detail=f"Unknown battery: {battery_id}")
+    return await enrich_battery_telemetry(battery)
+
+
+@app.post("/api/batteries")
+def upsert_battery(battery: dict[str, Any]):
+    saved = battery_store.upsert(battery)
+    refresh_modbus_clients()
+    return {"ok": True, "battery": saved}
+
+
+@app.post("/api/batteries/{battery_id}/telemetry")
+def ingest_battery_telemetry(battery_id: str, request: TelemetryIngestRequest | dict[str, Any]):
+    telemetry = request.get("telemetry", request) if isinstance(request, dict) else request.telemetry
+    try:
+        battery = battery_store.update_telemetry(battery_id, normalize_telemetry(telemetry))
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Unknown battery: {battery_id}") from None
+    return {"ok": True, "battery": battery}
 
 
 @app.post("/api/plan/optimize")
@@ -331,6 +384,41 @@ def build_plan(
     }
 
 
+async def get_batteries_with_telemetry() -> list[dict[str, Any]]:
+    return [await enrich_battery_telemetry(battery) for battery in battery_store.list()]
+
+
+async def enrich_battery_telemetry(battery: dict[str, Any]) -> dict[str, Any]:
+    enriched = dict(battery)
+    telemetry = dict(enriched.get("telemetry") or {})
+
+    ha_telemetry = await ha_sensor_client.read_battery_sensors(enriched)
+    telemetry.update({key: value for key, value in ha_telemetry.items() if value is not None})
+
+    connection = enriched.get("connection") or {}
+    if connection.get("type") in {"modbus_tcp", "modbus_rs485"} and enriched["id"] in modbus_clients:
+        telemetry.update(await modbus_clients[enriched["id"]].read_telemetry())
+        telemetry["source"] = connection.get("type")
+        telemetry["last_seen"] = datetime.now(timezone.utc).isoformat()
+
+    normalized = normalize_telemetry(telemetry)
+    enriched["telemetry"] = normalized
+    enriched["soc_percent"] = normalized.get("soc_percent", enriched.get("soc_percent", 0))
+    enriched["power_kw"] = normalized.get("power_kw", enriched.get("power_kw", 0))
+    enriched["status"] = normalized.get("status", "unknown")
+    enriched["online"] = bool(normalized.get("last_seen"))
+    return enriched
+
+
+def normalize_telemetry(telemetry: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(telemetry)
+    if "soc" in normalized and "soc_percent" not in normalized:
+        normalized["soc_percent"] = normalized["soc"]
+    if "powerKw" in normalized and "power_kw" not in normalized:
+        normalized["power_kw"] = normalized["powerKw"]
+    return normalized
+
+
 async def send_battery_command(battery_id: str, mode: Literal["idle", "charge", "discharge"], power_kw: float):
     modbus_result = None
     if battery_id in modbus_clients:
@@ -349,6 +437,16 @@ async def send_battery_command(battery_id: str, mode: Literal["idle", "charge", 
 
 
 def build_modbus_clients():
+    clients = {}
+    for battery in battery_store.list():
+        connection = battery.get("connection") or {}
+        if connection.get("type") == "modbus_tcp" and connection.get("host"):
+            clients[battery["id"]] = ModbusBatteryClient(
+                PymodbusTcpTransport(connection["host"], int(connection.get("port", 502))),
+                unit=int(connection.get("unit", 1)),
+            )
+    if clients:
+        return clients
     if settings.modbus_host:
         return {
             "batt_1": ModbusBatteryClient(
@@ -370,3 +468,8 @@ def build_modbus_clients():
 
 
 modbus_clients.update(build_modbus_clients())
+
+
+def refresh_modbus_clients() -> None:
+    modbus_clients.clear()
+    modbus_clients.update(build_modbus_clients())
