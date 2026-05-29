@@ -563,6 +563,18 @@ h2 {
   background: rgba(85, 199, 131, 0.13);
 }
 
+.plan-hour-table-row.charge td {
+  background: rgba(50, 189, 242, 0.08);
+}
+
+.plan-hour-table-row.discharge td {
+  background: rgba(85, 199, 131, 0.09);
+}
+
+.plan-hour-table-row.idle td {
+  background: rgba(127, 143, 159, 0.05);
+}
+
 .mobile-plan-list {
   display: none;
 }

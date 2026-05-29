@@ -69,8 +69,8 @@ def optimize_arbitrage(
     soc = _clamp(battery.soc, min_soc, max_soc)
     charge_efficiency = sqrt(_clamp(battery.roundtrip_efficiency, 0.5, 1.0))
     discharge_efficiency = charge_efficiency
-    cheap_cutoff = _percentile([slot.price for slot in ordered], 0.35)
-    expensive_cutoff = _percentile([slot.price for slot in ordered], 0.65)
+    cheap_cutoff = _percentile([slot.price for slot in ordered], 0.33)
+    expensive_cutoff = _percentile([slot.price for slot in ordered], 0.67)
     stored_energy_kwh = battery.capacity_kwh * max(0.0, soc - min_soc) / 100
     average_energy_cost = max(0.0, battery.initial_energy_cost)
     plan: list[DispatchSlot] = []
@@ -89,11 +89,11 @@ def optimize_arbitrage(
         if slot.price <= cheap_cutoff and soc < max_soc - 0.5 and profitable_future_sell:
             mode = "charge"
             power_kw = battery.max_charge_kw
-            reason = "Cheap hour with margin"
+            reason = "Buy in cheap hour"
         elif slot.price >= expensive_cutoff and soc > min_soc + 0.5 and profitable_current_sell:
             mode = "discharge"
             power_kw = battery.max_discharge_kw
-            reason = "Expensive hour with margin"
+            reason = "Sell in expensive hour"
 
         bounded = _bound(mode, power_kw, battery, soc, min_soc, max_soc, interval_hours, charge_efficiency, discharge_efficiency)
         mode, power_kw, grid_energy_kwh, battery_energy_kwh = bounded

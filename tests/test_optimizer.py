@@ -39,6 +39,8 @@ class OptimizerTest(unittest.TestCase):
         self.assertTrue(all(slot.power_kw <= 125 for slot in plan))
         self.assertGreater(sum(slot.mode == "charge" for slot in plan), 0)
         self.assertGreater(sum(slot.mode == "discharge" for slot in plan), 0)
+        self.assertTrue(all(slot.price <= 1700 for slot in plan if slot.mode == "charge"))
+        self.assertTrue(all(slot.price >= 7766.99 for slot in plan if slot.mode == "discharge"))
 
 
 if __name__ == "__main__":

@@ -18,8 +18,8 @@ export class PlanCalculator {
     }
 
     const ranked = rankPrices(normalizedPrices);
-    const cheapCutoff = percentile(ranked.map((item) => item.price), 0.35);
-    const expensiveCutoff = percentile(ranked.map((item) => item.price), 0.65);
+    const cheapCutoff = percentile(ranked.map((item) => item.price), 0.33);
+    const expensiveCutoff = percentile(ranked.map((item) => item.price), 0.67);
     const minMargin = Number(settings.minMargin ?? settings.min_margin ?? 0) || 0;
     const chargeEfficiency = Math.sqrt(battery.roundtripEfficiency);
     const dischargeEfficiency = Math.sqrt(battery.roundtripEfficiency);
