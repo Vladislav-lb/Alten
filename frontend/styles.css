@@ -1743,17 +1743,42 @@ h2,
 }
 
 @media (max-width: 540px) {
+  :host {
+    font-size: 11px;
+  }
+
   .settings-drawer {
-    top: 94px;
-    right: 8px;
-    left: 8px;
+    top: 86px;
+    right: 6px;
+    left: 6px;
     width: auto;
+    padding: 10px;
   }
 
   .top-nav button {
     min-width: 0;
     flex-basis: 33.333%;
     padding: 0 6px;
+    height: 38px;
+    font-size: 11px;
+  }
+
+  .app-tools {
+    min-height: 34px;
+    gap: 6px;
+    padding: 0 8px;
+  }
+
+  .icon-only {
+    width: 28px;
+    min-width: 28px;
+    min-height: 28px;
+    font-size: 17px;
+  }
+
+  .user-dot {
+    width: 22px;
+    height: 22px;
   }
 
   .control-sidebar {
@@ -1761,33 +1786,162 @@ h2,
   }
 
   .side-section {
+    padding: 8px;
     min-width: 0;
     border-right: 0;
     border-bottom: 1px solid var(--ems-border-soft);
   }
 
-  .segmented,
+  .side-title {
+    display: none;
+  }
+
+  .segmented {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .segmented button {
+    min-height: 32px;
+    height: 32px;
+    padding: 0 5px;
+    font-size: 10px;
+  }
+
+  .search-input {
+    margin-top: 7px;
+  }
+
   .side-actions,
   .metric-grid,
   .analytics-kpis,
   .sensor-grid,
   .plan-toolbar,
   .command-row,
-  .battery-card-actions,
+  .battery-card-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .group-tools {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr auto auto;
+    gap: 5px;
+  }
+
+  .side-actions,
+  .group-tools {
+    margin-top: 7px;
+  }
+
+  .side-actions button,
+  .group-tools button {
+    min-height: 28px;
+    padding: 0 6px;
+    font-size: 10px;
+  }
+
+  .main-stage {
+    padding: 6px;
+  }
+
+  .plan-card {
+    padding: 30px 8px 8px;
+    border-radius: 6px;
+  }
+
+  .day-tab {
+    min-width: 76px;
+    height: 26px;
+    font-size: 10px;
+  }
+
+  h2 {
+    font-size: 13px;
+  }
+
+  .plan-header,
+  .status-header,
+  .chart-title {
+    gap: 6px;
+  }
+
+  .plan-toolbar {
+    gap: 6px;
+  }
+
+  .date-picker input,
+  .plan-toolbar button,
+  .command-row button {
+    min-height: 30px;
+    font-size: 11px;
   }
 
   .summary-strip {
-    padding: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    margin: 10px 0 6px;
+    padding: 8px;
+  }
+
+  .summary-item {
+    min-height: 26px;
+  }
+
+  .summary-item strong {
+    margin-top: 3px;
+    font-size: 12px;
+  }
+
+  .settings-band {
+    gap: 7px;
+    padding: 8px;
+  }
+
+  .slider-row,
+  .check-row {
+    gap: 5px;
   }
 
   .mobile-plan-list {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .mobile-plan-card,
+  .mobile-plan-total {
+    padding: 8px;
+    border-radius: 6px;
+  }
+
+  .mobile-plan-card header {
+    display: grid;
+    gap: 4px;
+  }
+
+  .hour-chip {
+    min-width: 50px;
+    min-height: 24px;
+    font-size: 10px;
+  }
+
+  .mobile-plan-card header strong {
+    text-align: left;
+    font-size: 11px;
   }
 
   .mobile-plan-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
+    gap: 5px;
+    margin-top: 7px;
+  }
+
+  .mobile-plan-grid label,
+  .mobile-plan-grid div {
+    padding: 6px;
+    gap: 3px;
+  }
+
+  .mobile-plan-grid input {
+    min-height: 28px;
+    padding: 0 6px;
   }
 
   .battery-monitor-card,
@@ -1797,20 +1951,73 @@ h2,
   .monitoring-header,
   .wide-chart,
   .utility-card {
-    padding: 12px;
+    padding: 8px;
+    border-radius: 6px;
+  }
+
+  .battery-monitor-grid,
+  .battery-config-grid,
+  .analytics-view,
+  .monitoring-view,
+  .chart-panel {
+    gap: 7px;
+  }
+
+  .battery-monitor-head {
+    gap: 8px;
+  }
+
+  .online-pill {
+    min-width: 50px;
+    padding: 3px 6px;
+    font-size: 10px;
   }
 
   .soc-ring {
-    width: 96px;
-    height: 96px;
+    width: 76px;
+    height: 76px;
+    margin: 9px auto;
   }
 
   .soc-ring strong {
-    font-size: 21px;
+    font-size: 17px;
   }
 
   .soc-ring span {
-    margin-top: 36px;
+    margin-top: 29px;
+    font-size: 10px;
+  }
+
+  .sensor-grid {
+    gap: 5px;
+  }
+
+  .sensor-grid div {
+    padding: 6px;
+  }
+
+  .battery-config-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .battery-config-grid input {
+    min-height: 30px;
+    padding: 0 6px;
+  }
+
+  .manual-grid {
+    gap: 7px;
+  }
+
+  .manual-grid label {
+    gap: 5px;
+  }
+
+  .manual-grid input,
+  .manual-grid select,
+  .manual-grid button {
+    min-height: 30px;
   }
 
   .plan-matrix {
@@ -1826,5 +2033,21 @@ h2,
 
   .plan-matrix input {
     width: 36px;
+  }
+}
+
+@media (max-width: 390px) {
+  .mobile-plan-list,
+  .summary-strip,
+  .analytics-kpis,
+  .sensor-grid,
+  .battery-config-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .plan-toolbar,
+  .command-row,
+  .battery-card-actions {
+    grid-template-columns: 1fr;
   }
 }
