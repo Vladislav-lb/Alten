@@ -17,13 +17,25 @@ export class PlanCalculator {
       return emptyResult(normalizedPrices, "No active batteries or prices available.");
     }
 
-    const ranked = rankPrices(normalizedPrices);
-    const cheapCutoff = percentile(ranked.map((item) => item.price), 0.33);
-    const expensiveCutoff = percentile(ranked.map((item) => item.price), 0.67);
     const minMargin = Number(settings.minMargin ?? settings.min_margin ?? 0) || 0;
     const chargeEfficiency = Math.sqrt(battery.roundtripEfficiency);
     const dischargeEfficiency = Math.sqrt(battery.roundtripEfficiency);
     const dailyThroughputLimit = battery.capacityKwh * settings.maxCyclesPerDay;
+    const usableCapacityKwh = battery.capacityKwh * Math.max(0, battery.maxSoc - battery.minSoc) / 100;
+    const chargeSlotIds = selectEnergySlots({
+      prices: normalizedPrices,
+      energyTargetKwh: usableCapacityKwh,
+      energyPerSlotKwh: battery.maxChargeKw * settings.intervalHours * chargeEfficiency,
+      reverse: false,
+    });
+    const dischargeSlotIds = selectEnergySlots({
+      prices: normalizedPrices,
+      energyTargetKwh: usableCapacityKwh,
+      energyPerSlotKwh: battery.maxDischargeKw * settings.intervalHours / dischargeEfficiency,
+      reverse: true,
+    });
+    const cheapestPrice = Math.min(...normalizedPrices.filter((slot) => chargeSlotIds.has(slot.id)).map((slot) => slot.price));
+    const mostExpensivePrice = Math.max(...normalizedPrices.filter((slot) => dischargeSlotIds.has(slot.id)).map((slot) => slot.price));
 
     let soc = clamp(battery.soc, battery.minSoc, battery.maxSoc);
     let chargedThroughput = 0;
@@ -41,8 +53,10 @@ export class PlanCalculator {
           prices: normalizedPrices,
           soc,
           battery,
-          cheapCutoff,
-          expensiveCutoff,
+          chargeSlotIds,
+          dischargeSlotIds,
+          cheapestPrice: Number.isFinite(cheapestPrice) ? cheapestPrice : Math.min(...normalizedPrices.map((item) => item.price)),
+          mostExpensivePrice: Number.isFinite(mostExpensivePrice) ? mostExpensivePrice : Math.max(...normalizedPrices.map((item) => item.price)),
           chargedThroughput,
           dischargedThroughput,
           dailyThroughputLimit,
@@ -178,33 +192,32 @@ function optimizeAction(context) {
     prices,
     soc,
     battery,
-    cheapCutoff,
-    expensiveCutoff,
+    chargeSlotIds,
+    dischargeSlotIds,
+    cheapestPrice,
+    mostExpensivePrice,
     dischargedThroughput,
     dailyThroughputLimit,
     minMargin,
   } = context;
-  const future = prices.slice(index + 1);
-  const futureMax = Math.max(...future.map((item) => item.price), slot.price);
-  const pastMin = Math.min(...prices.slice(0, index + 1).map((item) => item.price), slot.price);
   const nearReserve = soc <= battery.minSoc + 1;
   const nearFull = soc >= battery.maxSoc - 1;
-  const futureSpreadOk = (futureMax * battery.roundtripEfficiency) - slot.price >= minMargin;
-  const currentSpreadOk = slot.price - (pastMin / Math.max(battery.roundtripEfficiency, 0.001)) >= minMargin;
+  const buySpreadOk = (mostExpensivePrice * battery.roundtripEfficiency) - slot.price >= minMargin;
+  const sellSpreadOk = slot.price - (cheapestPrice / Math.max(battery.roundtripEfficiency, 0.001)) >= minMargin;
 
   if (
-    slot.price <= cheapCutoff
+    chargeSlotIds.has(slot.id)
     && !nearFull
-    && futureSpreadOk
+    && buySpreadOk
   ) {
     return { mode: "charge", powerKw: battery.maxChargeKw, reason: "Buy in cheap hour" };
   }
 
   if (
-    slot.price >= expensiveCutoff
+    dischargeSlotIds.has(slot.id)
     && !nearReserve
     && dischargedThroughput < dailyThroughputLimit
-    && currentSpreadOk
+    && sellSpreadOk
   ) {
     return { mode: "discharge", powerKw: battery.maxDischargeKw, reason: "Sell in expensive hour" };
   }
@@ -295,15 +308,17 @@ function normalizeVirtualBattery(battery = {}, settings) {
   };
 }
 
-function rankPrices(prices) {
-  return [...prices].sort((a, b) => a.price - b.price);
-}
-
-function percentile(values, ratio) {
-  if (!values.length) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  const index = Math.min(sorted.length - 1, Math.max(0, Math.floor((sorted.length - 1) * ratio)));
-  return sorted[index];
+function selectEnergySlots({ prices, energyTargetKwh, energyPerSlotKwh, reverse }) {
+  if (energyTargetKwh <= 0 || energyPerSlotKwh <= 0) return new Set();
+  const ranked = [...prices].sort((a, b) => reverse ? b.price - a.price : a.price - b.price);
+  const selected = new Set();
+  let remaining = energyTargetKwh;
+  for (const slot of ranked) {
+    if (remaining <= 0) break;
+    selected.add(slot.id);
+    remaining -= energyPerSlotKwh;
+  }
+  return selected;
 }
 
 function sameHour(a, b) {

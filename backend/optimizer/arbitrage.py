@@ -69,28 +69,39 @@ def optimize_arbitrage(
     soc = _clamp(battery.soc, min_soc, max_soc)
     charge_efficiency = sqrt(_clamp(battery.roundtrip_efficiency, 0.5, 1.0))
     discharge_efficiency = charge_efficiency
-    cheap_cutoff = _percentile([slot.price for slot in ordered], 0.33)
-    expensive_cutoff = _percentile([slot.price for slot in ordered], 0.67)
+    usable_capacity_kwh = battery.capacity_kwh * max(0.0, max_soc - min_soc) / 100
+    charge_slots = _select_energy_slots(
+        ordered,
+        energy_target_kwh=usable_capacity_kwh,
+        energy_per_slot_kwh=battery.max_charge_kw * interval_hours * charge_efficiency,
+        reverse=False,
+    )
+    discharge_slots = _select_energy_slots(
+        ordered,
+        energy_target_kwh=usable_capacity_kwh,
+        energy_per_slot_kwh=battery.max_discharge_kw * interval_hours / discharge_efficiency,
+        reverse=True,
+    )
+    cheapest_price = min((ordered[index].price for index in charge_slots), default=min(slot.price for slot in ordered))
+    most_expensive_price = max((ordered[index].price for index in discharge_slots), default=max(slot.price for slot in ordered))
     stored_energy_kwh = battery.capacity_kwh * max(0.0, soc - min_soc) / 100
     average_energy_cost = max(0.0, battery.initial_energy_cost)
     plan: list[DispatchSlot] = []
 
     for index, slot in enumerate(ordered):
         soc_start = soc
-        future_prices = [item.price for item in ordered[index + 1 :]]
-        future_max = max(future_prices, default=slot.price)
-        profitable_future_sell = future_max * battery.roundtrip_efficiency - slot.price >= min_margin_per_mwh
-        profitable_current_sell = slot.price - average_energy_cost / max(battery.roundtrip_efficiency, 0.001) >= min_margin_per_mwh
+        profitable_buy = most_expensive_price * battery.roundtrip_efficiency - slot.price >= min_margin_per_mwh
+        profitable_sell = slot.price - cheapest_price / max(battery.roundtrip_efficiency, 0.001) >= min_margin_per_mwh
 
         mode: Mode = "idle"
         power_kw = 0.0
         reason = "Hold for better spread"
 
-        if slot.price <= cheap_cutoff and soc < max_soc - 0.5 and profitable_future_sell:
+        if index in charge_slots and soc < max_soc - 0.5 and profitable_buy:
             mode = "charge"
             power_kw = battery.max_charge_kw
             reason = "Buy in cheap hour"
-        elif slot.price >= expensive_cutoff and soc > min_soc + 0.5 and profitable_current_sell:
+        elif index in discharge_slots and soc > min_soc + 0.5 and profitable_sell:
             mode = "discharge"
             power_kw = battery.max_discharge_kw
             reason = "Sell in expensive hour"
@@ -169,12 +180,23 @@ def _bound(
     return "idle", 0.0, 0.0, 0.0
 
 
-def _percentile(values: list[float], ratio: float) -> float:
-    if not values:
-        return 0.0
-    ordered = sorted(values)
-    index = int((len(ordered) - 1) * ratio)
-    return ordered[index]
+def _select_energy_slots(
+    slots: list[PriceSlot],
+    energy_target_kwh: float,
+    energy_per_slot_kwh: float,
+    reverse: bool,
+) -> set[int]:
+    if energy_target_kwh <= 0 or energy_per_slot_kwh <= 0:
+        return set()
+    ranked = sorted(enumerate(slots), key=lambda item: item[1].price, reverse=reverse)
+    selected: set[int] = set()
+    remaining = energy_target_kwh
+    for index, _slot in ranked:
+        if remaining <= 0:
+            break
+        selected.add(index)
+        remaining -= energy_per_slot_kwh
+    return selected
 
 
 def _clamp(value: float, minimum: float, maximum: float) -> float:
