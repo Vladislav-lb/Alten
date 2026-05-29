@@ -579,9 +579,10 @@ function renderAlerts(alerts) {
 function renderPlanMatrix(plan, powerUnit = "kw") {
   const entries = normalizePlanSlots(plan);
   const unitLabel = powerUnit === "mw" ? "MW" : "kW";
+  const totalProfit = entries.reduce((sum, entry) => sum + entry.profit, 0);
   return `
     <div class="matrix-wrap">
-      <table class="plan-matrix">
+      <table class="plan-matrix plan-matrix-desktop">
         <thead>
           <tr>
             <th>Година</th>
@@ -597,11 +598,53 @@ function renderPlanMatrix(plan, powerUnit = "kw") {
           ${matrixRow("🔋 SOC (kWh)", entries, (entry) => formatNumber(entry.batteryEnergyKwh || 0, 0), "soc-row")}
           <tr class="total-row">
             <th>ВСЬОГО</th>
-            <td colspan="24">${formatNumber(entries.reduce((sum, entry) => sum + entry.profit, 0), 0)} ₴</td>
+            <td colspan="24">${formatNumber(totalProfit, 0)} ₴</td>
           </tr>
         </tbody>
       </table>
+      <div class="mobile-plan-list">
+        ${entries.map((entry, index) => renderPlanHourCard(entry, index, powerUnit, unitLabel)).join("")}
+        <article class="mobile-plan-total">
+          <span>ВСЬОГО</span>
+          <strong>${formatNumber(totalProfit, 0)} ₴</strong>
+        </article>
+      </div>
     </div>
+  `;
+}
+
+function renderPlanHourCard(entry, index, powerUnit, unitLabel) {
+  const buyValue = entry.mode === "charge" ? entry.powerKw : 0;
+  const sellValue = entry.mode === "discharge" ? entry.powerKw : 0;
+  return `
+    <article class="mobile-plan-card ${entry.mode || "idle"}">
+      <header>
+        <span class="hour-chip">${HOURS[index]}</span>
+        <strong>${formatNumber(entry.price, 0)} грн/МВт·год</strong>
+      </header>
+      <div class="mobile-plan-grid">
+        <label>
+          <span>Купівля (${unitLabel})</span>
+          <input data-field="plan-buy" data-id="${entry.id}" type="number" min="0" step="1" value="${formatPlainNumber(formatPowerValue(buyValue, powerUnit))}">
+        </label>
+        <label>
+          <span>Продаж (${unitLabel})</span>
+          <input data-field="plan-sell" data-id="${entry.id}" type="number" min="0" step="1" value="${formatPlainNumber(formatPowerValue(sellValue, powerUnit))}">
+        </label>
+        <div>
+          <span>Дія</span>
+          <strong>${modeLabel(entry.mode)}</strong>
+        </div>
+        <div>
+          <span>Прибуток</span>
+          <strong>${formatNumber(entry.profit, 0)} ₴</strong>
+        </div>
+        <div>
+          <span>SOC</span>
+          <strong>${formatNumber(entry.batteryEnergyKwh || 0, 0)} kWh</strong>
+        </div>
+      </div>
+    </article>
   `;
 }
 

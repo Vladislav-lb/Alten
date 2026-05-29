@@ -458,6 +458,81 @@ h2 {
   font-size: 11px;
 }
 
+.mobile-plan-list {
+  display: none;
+}
+
+.mobile-plan-card,
+.mobile-plan-total {
+  border: 1px solid var(--ems-border-soft, #d9dee3);
+  border-radius: 8px;
+  background: var(--ems-panel-soft, #f5f8fb);
+  padding: 12px;
+}
+
+.mobile-plan-card header,
+.mobile-plan-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.hour-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 58px;
+  min-height: 28px;
+  border-radius: 6px;
+  background: rgba(50, 189, 242, 0.14);
+  color: var(--ems-text, #1e2933);
+  font-weight: 800;
+}
+
+.mobile-plan-card header strong {
+  color: var(--ems-text, #1e2933);
+  text-align: right;
+}
+
+.mobile-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.mobile-plan-grid label,
+.mobile-plan-grid div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  border: 1px solid var(--ems-border-soft, #d9dee3);
+  border-radius: 6px;
+  background: var(--ems-panel, #ffffff);
+  padding: 8px;
+}
+
+.mobile-plan-grid label:first-child,
+.mobile-plan-grid label:nth-child(2) {
+  grid-column: span 1;
+}
+
+.mobile-plan-grid span,
+.mobile-plan-total span {
+  color: var(--ems-muted, #6f7b86);
+  font-size: 11px;
+}
+
+.mobile-plan-grid strong,
+.mobile-plan-total strong {
+  color: var(--ems-text, #1e2933);
+}
+
+.mobile-plan-grid input {
+  width: 100%;
+}
+
 .price-row {
   background: #fff8df;
 }
@@ -1649,6 +1724,22 @@ h2,
   .sensor-table {
     min-width: 760px;
   }
+
+  .plan-matrix-desktop {
+    display: none;
+  }
+
+  .matrix-wrap {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+
+  .mobile-plan-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
 }
 
 @media (max-width: 540px) {
@@ -1689,6 +1780,14 @@ h2,
 
   .summary-strip {
     padding: 10px;
+  }
+
+  .mobile-plan-list {
+    grid-template-columns: 1fr;
+  }
+
+  .mobile-plan-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .battery-monitor-card,
