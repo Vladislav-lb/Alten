@@ -168,7 +168,10 @@ class AltenEmsCard extends HTMLElement {
 
     if (["min-margin", "efficiency", "min-soc"].includes(field)) {
       const configKey = field.replaceAll("-", "_");
-      this.config = { ...this.config, [configKey]: Number(value) || 0 };
+      const numericValue = Number(value) || 0;
+      this.config = { ...this.config, [configKey]: numericValue };
+      if (field === "min-soc") this.config = { ...this.config, reserve_soc: numericValue };
+      this.backendPlanResult = null;
       this.render();
       return;
     }
@@ -235,6 +238,7 @@ class AltenEmsCard extends HTMLElement {
       }
       if (action === "auto-plan") {
         this.planOverrides = [];
+        this.backendPlanResult = null;
         await this.optimizePlan();
       }
       if (action === "clear-plan") this.planOverrides = this.getPlanResult().plan.map((entry) => ({
@@ -306,6 +310,8 @@ class AltenEmsCard extends HTMLElement {
       existingPlan: this.planOverrides,
       options: {
         reserveSoc: this.config.reserve_soc,
+        minMargin: this.config.min_margin,
+        efficiency: this.config.efficiency,
         targetSoc: this.config.target_soc,
         cycleCostPerMwh: this.config.cycle_cost_per_mwh || 0,
         maxCyclesPerDay: this.config.max_cycles_per_day || 1.5,

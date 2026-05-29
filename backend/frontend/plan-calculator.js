@@ -20,6 +20,7 @@ export class PlanCalculator {
     const ranked = rankPrices(normalizedPrices);
     const cheapCutoff = percentile(ranked.map((item) => item.price), 0.35);
     const expensiveCutoff = percentile(ranked.map((item) => item.price), 0.65);
+    const minMargin = Number(settings.minMargin ?? settings.min_margin ?? 0) || 0;
     const chargeEfficiency = Math.sqrt(battery.roundtripEfficiency);
     const dischargeEfficiency = Math.sqrt(battery.roundtripEfficiency);
     const dailyThroughputLimit = battery.capacityKwh * settings.maxCyclesPerDay;
@@ -45,6 +46,7 @@ export class PlanCalculator {
           chargedThroughput,
           dischargedThroughput,
           dailyThroughputLimit,
+          minMargin,
         });
 
       const bounded = boundAction(action, {
@@ -180,26 +182,31 @@ function optimizeAction(context) {
     expensiveCutoff,
     dischargedThroughput,
     dailyThroughputLimit,
+    minMargin,
   } = context;
   const future = prices.slice(index + 1);
   const futureMax = Math.max(...future.map((item) => item.price), slot.price);
+  const pastMin = Math.min(...prices.slice(0, index + 1).map((item) => item.price), slot.price);
   const nearReserve = soc <= battery.minSoc + 1;
   const nearFull = soc >= battery.maxSoc - 1;
+  const futureSpreadOk = (futureMax * battery.roundtripEfficiency) - slot.price >= minMargin;
+  const currentSpreadOk = slot.price - (pastMin / Math.max(battery.roundtripEfficiency, 0.001)) >= minMargin;
 
   if (
     slot.price <= cheapCutoff
     && !nearFull
-    && futureMax > slot.price / battery.roundtripEfficiency
+    && futureSpreadOk
   ) {
-    return { mode: "charge", powerKw: battery.maxChargeKw, reason: "Low price window" };
+    return { mode: "charge", powerKw: battery.maxChargeKw, reason: "Buy in cheap hour" };
   }
 
   if (
     slot.price >= expensiveCutoff
     && !nearReserve
     && dischargedThroughput < dailyThroughputLimit
+    && currentSpreadOk
   ) {
-    return { mode: "discharge", powerKw: battery.maxDischargeKw, reason: "High price window" };
+    return { mode: "discharge", powerKw: battery.maxDischargeKw, reason: "Sell in expensive hour" };
   }
 
   return { mode: "idle", powerKw: 0, reason: "Hold for better spread" };

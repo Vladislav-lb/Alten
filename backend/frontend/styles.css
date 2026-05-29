@@ -473,6 +473,44 @@ h2 {
   min-width: 72px;
 }
 
+.inline-viz {
+  display: grid;
+  gap: 3px;
+  min-width: 48px;
+}
+
+.inline-viz strong {
+  color: var(--ems-text, #1e2933);
+  font-size: 11px;
+}
+
+.inline-viz i {
+  display: block;
+  width: var(--w);
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--ems-cyan, #32bdf2), var(--ems-amber, #f3b94e));
+}
+
+.inline-viz.cost.positive i {
+  background: linear-gradient(90deg, var(--ems-green, #55c783), #b8f0cc);
+}
+
+.inline-viz.cost.negative i {
+  background: linear-gradient(90deg, var(--ems-red, #ef5350), #ffb1ad);
+}
+
+.soc-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 22px;
+  border-radius: 999px;
+  background: rgba(50, 189, 242, 0.12);
+  font-weight: 800;
+}
+
 .mobile-cell-viz strong {
   color: var(--ems-text, #1e2933);
 }
@@ -2132,6 +2170,10 @@ h2,
 
   .mobile-cell-viz {
     min-width: 58px;
+  }
+
+  .inline-viz {
+    min-width: 40px;
   }
 
   .mode-pill {

@@ -870,12 +870,12 @@ function renderPlanMatrix(plan, powerUnit = "kw") {
           </tr>
         </thead>
         <tbody>
-          ${matrixRow("💰 Ціна РДН", entries, (entry) => formatNumber(entry.price, 0), "price-row")}
+          ${matrixRow("💰 Ціна РДН", entries, (entry) => renderInlineMetric(entry.price, maxPrice, "price"), "price-row")}
           ${inputMatrixRow(`🔋 Купівля (${unitLabel})`, entries, "plan-buy", (entry) => formatPowerValue(entry.mode === "charge" ? entry.powerKw : 0, powerUnit), "buy-row")}
           ${inputMatrixRow(`⚡ Продаж (${unitLabel})`, entries, "plan-sell", (entry) => formatPowerValue(entry.mode === "discharge" ? entry.powerKw : 0, powerUnit), "sell-row")}
-          ${matrixRow("↔ Дія", entries, (entry) => modeLabel(entry.mode), "action-row")}
-          ${matrixRow("💵 Вартість", entries, (entry) => formatNumber(entry.profit, 0), "profit-row")}
-          ${matrixRow("🔋 SOC (kWh)", entries, (entry) => formatNumber(entry.batteryEnergyKwh || 0, 0), "soc-row")}
+          ${matrixRow("↔ Дія", entries, (entry) => `<span class="mode-pill ${entry.mode || "idle"}">${modeIcon(entry.mode)} ${modeLabel(entry.mode)}</span>`, "action-row")}
+          ${matrixRow("💵 Вартість", entries, (entry) => renderInlineMetric(entry.profit, maxCost, entry.profit < 0 ? "cost negative" : "cost positive", "₴"), "profit-row")}
+          ${matrixRow("🔋 SOC (kWh)", entries, (entry) => `<span class="soc-badge">🔋 ${formatNumber(entry.batteryEnergyKwh || 0, 0)}</span>`, "soc-row")}
           <tr class="total-row">
             <th>📈 Маржа</th>
             <td colspan="24">${formatNumber(totalCost, 0)} ₴</td>
@@ -939,6 +939,17 @@ function renderPlanHourTableRow(entry, index, powerUnit, maxPrice = 1, maxCost =
       </td>
       <td class="soc-cell">🔋 ${formatNumber(entry.batteryEnergyKwh || 0, 0)} kWh</td>
     </tr>
+  `;
+}
+
+function renderInlineMetric(value, max, kind, suffix = "") {
+  const number = Number(value) || 0;
+  const percent = Math.max(4, Math.min(100, (Math.abs(number) / Math.max(Math.abs(max), 1)) * 100));
+  return `
+    <span class="inline-viz ${kind}">
+      <strong>${formatNumber(number, 0)}${suffix ? ` ${suffix}` : ""}</strong>
+      <i style="--w:${percent}%"></i>
+    </span>
   `;
 }
 
