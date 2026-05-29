@@ -25,6 +25,8 @@ export class UIRenderer extends EventTarget {
 
   render(state) {
     this.state = state;
+    const matrixScroll = this.captureMatrixScroll();
+    const focusedField = this.captureFocusedField();
     const {
       virtualBattery,
       groups,
@@ -168,6 +170,8 @@ export class UIRenderer extends EventTarget {
         </div>
       </section>
     `;
+    this.restoreMatrixScroll(matrixScroll);
+    this.restoreFocusedField(focusedField);
   }
 
   handleClick(event) {
@@ -238,6 +242,50 @@ export class UIRenderer extends EventTarget {
         status: read("sensor_status"),
       },
     };
+  }
+
+  captureMatrixScroll() {
+    const matrix = this.root.querySelector(".matrix-wrap");
+    if (!matrix) return null;
+    return {
+      left: matrix.scrollLeft,
+      top: matrix.scrollTop,
+    };
+  }
+
+  restoreMatrixScroll(scroll) {
+    if (!scroll) return;
+    const matrix = this.root.querySelector(".matrix-wrap");
+    if (!matrix) return;
+    requestAnimationFrame(() => {
+      matrix.scrollLeft = scroll.left;
+      matrix.scrollTop = scroll.top;
+    });
+  }
+
+  captureFocusedField() {
+    const active = this.root.activeElement;
+    if (!active?.dataset?.field) return null;
+    return {
+      field: active.dataset.field,
+      id: active.dataset.id || "",
+      start: active.selectionStart,
+      end: active.selectionEnd,
+    };
+  }
+
+  restoreFocusedField(focused) {
+    if (!focused) return;
+    const selector = `[data-field="${focused.field}"][data-id="${focused.id}"]`;
+    const fallbackSelector = `[data-field="${focused.field}"]`;
+    const target = this.root.querySelector(selector) || this.root.querySelector(fallbackSelector);
+    if (!target) return;
+    requestAnimationFrame(() => {
+      target.focus({ preventScroll: true });
+      if (typeof focused.start === "number" && target.setSelectionRange) {
+        target.setSelectionRange(focused.start, focused.end ?? focused.start);
+      }
+    });
   }
 }
 
@@ -576,7 +624,7 @@ function renderAlerts(alerts) {
   `;
 }
 
-function renderPlanMatrix(plan, powerUnit = "kw") {
+function renderPlanMatrixLegacy(plan, powerUnit = "kw") {
   const entries = normalizePlanSlots(plan);
   const unitLabel = powerUnit === "mw" ? "MW" : "kW";
   const totalProfit = entries.reduce((sum, entry) => sum + entry.profit, 0);
@@ -635,7 +683,7 @@ function renderPlanMatrix(plan, powerUnit = "kw") {
   `;
 }
 
-function renderPlanHourTableRow(entry, index, powerUnit) {
+function renderPlanHourTableRowLegacy(entry, index, powerUnit) {
   const buyValue = entry.mode === "charge" ? entry.powerKw : 0;
   const sellValue = entry.mode === "discharge" ? entry.powerKw : 0;
   return `
@@ -803,6 +851,101 @@ function totalCharge(plan) {
 
 function totalDischarge(plan) {
   return plan.filter((entry) => entry.mode === "discharge").reduce((sum, entry) => sum + entry.powerKw, 0);
+}
+
+function renderPlanMatrix(plan, powerUnit = "kw") {
+  const entries = normalizePlanSlots(plan);
+  const unitLabel = powerUnit === "mw" ? "MW" : "kW";
+  const totalCost = entries.reduce((sum, entry) => sum + entry.profit, 0);
+  const maxPrice = Math.max(...entries.map((entry) => Number(entry.price) || 0), 1);
+  const maxCost = Math.max(...entries.map((entry) => Math.abs(Number(entry.profit) || 0)), 1);
+
+  return `
+    <div class="matrix-wrap">
+      <table class="plan-matrix plan-matrix-wide">
+        <thead>
+          <tr>
+            <th>Година</th>
+            ${HOURS.map((hour) => `<th>${hour}</th>`).join("")}
+          </tr>
+        </thead>
+        <tbody>
+          ${matrixRow("💰 Ціна РДН", entries, (entry) => formatNumber(entry.price, 0), "price-row")}
+          ${inputMatrixRow(`🔋 Купівля (${unitLabel})`, entries, "plan-buy", (entry) => formatPowerValue(entry.mode === "charge" ? entry.powerKw : 0, powerUnit), "buy-row")}
+          ${inputMatrixRow(`⚡ Продаж (${unitLabel})`, entries, "plan-sell", (entry) => formatPowerValue(entry.mode === "discharge" ? entry.powerKw : 0, powerUnit), "sell-row")}
+          ${matrixRow("↔ Дія", entries, (entry) => modeLabel(entry.mode), "action-row")}
+          ${matrixRow("💵 Вартість", entries, (entry) => formatNumber(entry.profit, 0), "profit-row")}
+          ${matrixRow("🔋 SOC (kWh)", entries, (entry) => formatNumber(entry.batteryEnergyKwh || 0, 0), "soc-row")}
+          <tr class="total-row">
+            <th>📈 Маржа</th>
+            <td colspan="24">${formatNumber(totalCost, 0)} ₴</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <table class="plan-matrix plan-matrix-mobile">
+        <thead>
+          <tr>
+            <th>🕒 Година</th>
+            <th>💰 Ціна</th>
+            <th>🔋 Купівля</th>
+            <th>⚡ Продаж</th>
+            <th>↔ Дія</th>
+            <th>💵 Вартість</th>
+            <th>🔋 SOC</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${entries.map((entry, index) => renderPlanHourTableRow(entry, index, powerUnit, maxPrice, maxCost)).join("")}
+          <tr class="total-row mobile-margin-row">
+            <th>📈 Маржа</th>
+            <td colspan="4">24 години</td>
+            <td>${formatNumber(totalCost, 0)} ₴</td>
+            <td>${formatNumber(entries.at(-1)?.batteryEnergyKwh || 0, 0)} kWh</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderPlanHourTableRow(entry, index, powerUnit, maxPrice = 1, maxCost = 1) {
+  const buyValue = entry.mode === "charge" ? entry.powerKw : 0;
+  const sellValue = entry.mode === "discharge" ? entry.powerKw : 0;
+  const pricePercent = Math.max(4, Math.min(100, ((Number(entry.price) || 0) / maxPrice) * 100));
+  const cost = Number(entry.profit) || 0;
+  const costPercent = Math.max(4, Math.min(100, (Math.abs(cost) / maxCost) * 100));
+  return `
+    <tr class="plan-hour-table-row ${entry.mode || "idle"}">
+      <th><span class="hour-chip">🕒 ${HOURS[index]}</span></th>
+      <td class="price-cell">
+        <div class="mobile-cell-viz price-viz">
+          <strong>${formatNumber(entry.price, 0)}</strong>
+          <span class="mini-bar"><i style="--w:${pricePercent}%"></i></span>
+        </div>
+      </td>
+      <td class="buy-cell">
+        <input data-field="plan-buy" data-id="${entry.id}" type="number" min="0" step="1" value="${formatPlainNumber(formatPowerValue(buyValue, powerUnit))}">
+      </td>
+      <td class="sell-cell">
+        <input data-field="plan-sell" data-id="${entry.id}" type="number" min="0" step="1" value="${formatPlainNumber(formatPowerValue(sellValue, powerUnit))}">
+      </td>
+      <td class="action-cell"><span class="mode-pill ${entry.mode || "idle"}">${modeIcon(entry.mode)} ${modeLabel(entry.mode)}</span></td>
+      <td class="profit-cell">
+        <div class="mobile-cell-viz cost-viz ${cost < 0 ? "negative" : "positive"}">
+          <strong>${formatNumber(cost, 0)} ₴</strong>
+          <span class="mini-bar"><i style="--w:${costPercent}%"></i></span>
+        </div>
+      </td>
+      <td class="soc-cell">🔋 ${formatNumber(entry.batteryEnergyKwh || 0, 0)} kWh</td>
+    </tr>
+  `;
+}
+
+function modeIcon(mode) {
+  if (mode === "charge") return "🔋";
+  if (mode === "discharge") return "⚡";
+  return "•";
 }
 
 function tomorrowValue() {
