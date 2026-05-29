@@ -42,6 +42,7 @@ export class UIRenderer extends EventTarget {
       powerUnit = "kw",
       theme = "dark",
       settingsOpen = false,
+      manualControl = {},
     } = state;
     const activeGroup = selectedGroup || groups[0]?.group || "ALTEN";
     const unitLabel = powerUnit === "mw" ? "MW" : "kW";
@@ -154,7 +155,7 @@ export class UIRenderer extends EventTarget {
             <section class="lower-grid ${activeView !== "control" ? "view-hidden" : ""}">
               <div class="utility-card manual-card">
                 <h2>🎮 Ручне керування</h2>
-                ${renderManualControl(selectedBatteryId, batteries)}
+                ${renderManualControl(selectedBatteryId, batteries, manualControl)}
               </div>
               <div class="utility-card status-card">
                 <div class="status-header">
@@ -773,20 +774,21 @@ function inputMatrixRow(label, entries, field, renderValue, rowClass) {
   `;
 }
 
-function renderManualControl(selectedBatteryId, batteries) {
+function renderManualControl(selectedBatteryId, batteries, manualControl = {}) {
   const selected = batteries.find((battery) => battery.id === selectedBatteryId);
+  const target = manualControl.target || selected?.id || "virtual";
   return `
     <div class="manual-grid">
       <label>
         Потужність заряду:
-        <input data-field="manual-charge-power" type="number" min="0" step="1" value="50">
+        <input data-field="manual-charge-power" type="number" min="0" step="1" value="${formatPlainNumber(manualControl.chargePowerKw ?? 50)}">
         <span>кВт</span>
       </label>
       <button data-action="manual-control" data-mode="charge">🔋 ЗАРЯД</button>
 
       <label>
         Потужність розряду:
-        <input data-field="manual-discharge-power" type="number" min="0" step="1" value="50">
+        <input data-field="manual-discharge-power" type="number" min="0" step="1" value="${formatPlainNumber(manualControl.dischargePowerKw ?? 50)}">
         <span>кВт</span>
       </label>
       <button data-action="manual-control" data-mode="discharge">⚡ РОЗРЯД</button>
@@ -794,22 +796,22 @@ function renderManualControl(selectedBatteryId, batteries) {
       <label>
         Ціль:
         <select data-field="manual-target">
-          <option value="virtual" ${!selected ? "selected" : ""}>Virtual BESS</option>
-          ${batteries.map((battery) => `<option value="${battery.id}" ${selected?.id === battery.id ? "selected" : ""}>${escapeHtml(battery.name)}</option>`).join("")}
+          <option value="virtual" ${target === "virtual" ? "selected" : ""}>Virtual BESS</option>
+          ${batteries.map((battery) => `<option value="${battery.id}" ${target === battery.id ? "selected" : ""}>${escapeHtml(battery.name)}</option>`).join("")}
         </select>
       </label>
       <button data-action="manual-control" data-mode="idle">■ СТОП</button>
 
       <label>
         Час початку:
-        <input data-field="manual-start" type="time" value="11:00">
+        <input data-field="manual-start" type="time" value="${escapeHtml(manualControl.startTime || "11:00")}">
       </label>
       <label>
         Час завершення:
-        <input data-field="manual-end" type="time" value="12:00">
+        <input data-field="manual-end" type="time" value="${escapeHtml(manualControl.endTime || "12:00")}">
       </label>
       <label class="range-check">
-        <input data-field="manual-use-range" type="checkbox">
+        <input data-field="manual-use-range" type="checkbox" ${manualControl.useRange ? "checked" : ""}>
         <span>Використати діапазон</span>
       </label>
     </div>

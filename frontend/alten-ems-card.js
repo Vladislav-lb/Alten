@@ -31,6 +31,9 @@ class AltenEmsCard extends HTMLElement {
     this.manualPowerKw = 0;
     this.manualChargePowerKw = 50;
     this.manualDischargePowerKw = 50;
+    this.manualStartTime = "11:00";
+    this.manualEndTime = "12:00";
+    this.manualUseRange = false;
     this.selectedBatteryId = null;
     this.activeView = "control";
     this.activeScope = "clients";
@@ -166,6 +169,21 @@ class AltenEmsCard extends HTMLElement {
       return;
     }
 
+    if (field === "manual-start") {
+      this.manualStartTime = value || "11:00";
+      return;
+    }
+
+    if (field === "manual-end") {
+      this.manualEndTime = value || "12:00";
+      return;
+    }
+
+    if (field === "manual-use-range") {
+      this.manualUseRange = Boolean(value);
+      return;
+    }
+
     if (["min-margin", "efficiency", "min-soc"].includes(field)) {
       const configKey = field.replaceAll("-", "_");
       const numericValue = Number(value) || 0;
@@ -278,11 +296,15 @@ class AltenEmsCard extends HTMLElement {
       if (action === "delete-group") await this.clearActiveGroup();
       if (action === "confirm-plan") await this.confirmPlan();
       if (action === "manual-control") {
-        await this.backendService.manualControl({
-          batteryId: this.selectedBatteryId || "virtual",
+        const result = await this.backendService.manualControl({
+          batteryId: this.manualTarget || this.selectedBatteryId || "virtual",
           mode,
           powerKw: this.getManualPower(mode),
+          startTime: this.manualStartTime,
+          endTime: this.manualEndTime,
+          useRange: this.manualUseRange,
         });
+        this.addAlert(this.manualCommandMessage(mode, result), mode === "idle" ? "warning" : "success");
       }
       if (action === "emergency-stop") {
         try {
@@ -375,6 +397,14 @@ class AltenEmsCard extends HTMLElement {
       powerUnit: this.powerUnit,
       theme: this.theme,
       settingsOpen: this.settingsOpen,
+      manualControl: {
+        target: this.manualTarget,
+        chargePowerKw: this.manualChargePowerKw,
+        dischargePowerKw: this.manualDischargePowerKw,
+        startTime: this.manualStartTime,
+        endTime: this.manualEndTime,
+        useRange: this.manualUseRange,
+      },
     });
   }
 
@@ -433,6 +463,13 @@ class AltenEmsCard extends HTMLElement {
     if (mode === "charge") return this.manualChargePowerKw || this.manualPowerKw || 0;
     if (mode === "discharge") return this.manualDischargePowerKw || this.manualPowerKw || 0;
     return 0;
+  }
+
+  manualCommandMessage(mode, result = {}) {
+    const targetCount = Array.isArray(result.targets) ? result.targets.length : 1;
+    if (mode === "charge") return `Manual charge command sent (${targetCount} target).`;
+    if (mode === "discharge") return `Manual discharge command sent (${targetCount} target).`;
+    return `Manual stop command sent (${targetCount} target).`;
   }
 
   normalizePowerInput(value) {

@@ -46,15 +46,18 @@ export class BackendService extends EventTarget {
     });
   }
 
-  async manualControl({ batteryId, mode, powerKw }) {
+  async manualControl({ batteryId, mode, powerKw, startTime = null, endTime = null, useRange = false }) {
     const service = mode === "charge"
       ? "/api/services/alten_ems/manual_charge"
       : mode === "discharge"
         ? "/api/services/alten_ems/manual_discharge"
         : "/api/services/alten_ems/emergency_stop";
     return this.postJson(service, {
-      battery_id: batteryId || "batt_1",
+      battery_id: batteryId || "virtual",
       power_kw: Number(powerKw) || 0,
+      start_time: startTime,
+      end_time: endTime,
+      use_range: Boolean(useRange),
     });
   }
 

@@ -83,6 +83,9 @@ class PlanApplyRequest(BaseModel):
 class ManualCommand(BaseModel):
     battery_id: str = "virtual"
     power_kw: float = Field(default=0, ge=0)
+    start_time: str | None = None
+    end_time: str | None = None
+    use_range: bool = False
 
 
 class MqttPublishRequest(BaseModel):
@@ -252,13 +255,13 @@ async def ha_emergency_stop(command: ManualCommand | None = None):
 @app.post("/api/services/alten_ems/manual_charge")
 async def ha_manual_charge(command: ManualCommand):
     result = await send_battery_command(command.battery_id, "charge", command.power_kw)
-    return {"ok": True, "service": "alten_ems.manual_charge", **result}
+    return {"ok": True, "service": "alten_ems.manual_charge", "schedule": manual_schedule(command), **result}
 
 
 @app.post("/api/services/alten_ems/manual_discharge")
 async def ha_manual_discharge(command: ManualCommand):
     result = await send_battery_command(command.battery_id, "discharge", command.power_kw)
-    return {"ok": True, "service": "alten_ems.manual_discharge", **result}
+    return {"ok": True, "service": "alten_ems.manual_discharge", "schedule": manual_schedule(command), **result}
 
 
 @app.get("/api/modbus/{battery_id}/telemetry")
@@ -398,7 +401,31 @@ def normalize_telemetry(telemetry: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def manual_schedule(command: ManualCommand) -> dict[str, Any] | None:
+    if not command.use_range:
+        return None
+    return {
+        "start_time": command.start_time,
+        "end_time": command.end_time,
+        "use_range": command.use_range,
+    }
+
+
 async def send_battery_command(battery_id: str, mode: Literal["idle", "charge", "discharge"], power_kw: float):
+    if battery_id == "virtual":
+        targets = [battery for battery in battery_store.list() if battery.get("enabled", True)]
+        results = [
+            await send_battery_command(str(battery["id"]), mode, power_kw)
+            for battery in targets
+            if battery.get("id")
+        ]
+        return {
+            "battery_id": battery_id,
+            "mode": mode,
+            "power_kw": power_kw,
+            "targets": results,
+        }
+
     modbus_result = None
     if battery_id in modbus_clients:
         await modbus_clients[battery_id].write_command(mode, power_kw)

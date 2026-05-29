@@ -318,6 +318,12 @@ input[type="range"] {
   color: #a72020;
 }
 
+.alert.success {
+  border-color: #8bd6a8;
+  background: #ecfbf2;
+  color: #147a43;
+}
+
 .plan-card,
 .utility-card {
   position: relative;
@@ -1703,6 +1709,12 @@ h2,
   border-color: rgba(239, 83, 80, 0.75);
   background: rgba(239, 83, 80, 0.13);
   color: #ffb1ad;
+}
+
+.alert.success {
+  border-color: rgba(85, 199, 131, 0.75);
+  background: rgba(85, 199, 131, 0.13);
+  color: #9af0bb;
 }
 
 .empty-state {
