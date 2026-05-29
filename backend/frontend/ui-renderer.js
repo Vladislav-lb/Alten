@@ -582,7 +582,27 @@ function renderPlanMatrix(plan, powerUnit = "kw") {
   const totalProfit = entries.reduce((sum, entry) => sum + entry.profit, 0);
   return `
     <div class="matrix-wrap">
-      <table class="plan-matrix plan-matrix-desktop">
+      <table class="plan-matrix plan-matrix-wide">
+        <thead>
+          <tr>
+            <th>Р“РѕРґРёРЅР°</th>
+            ${HOURS.map((hour) => `<th>${hour}</th>`).join("")}
+          </tr>
+        </thead>
+        <tbody>
+          ${matrixRow("💰 Р¦С–РЅР° Р Р”Рќ", entries, (entry) => formatNumber(entry.price, 0), "price-row")}
+          ${inputMatrixRow(`🔋 РљСѓРїС–РІР»СЏ (${unitLabel})`, entries, "plan-buy", (entry) => formatPowerValue(entry.mode === "charge" ? entry.powerKw : 0, powerUnit), "buy-row")}
+          ${inputMatrixRow(`⚡ РџСЂРѕРґР°Р¶ (${unitLabel})`, entries, "plan-sell", (entry) => formatPowerValue(entry.mode === "discharge" ? entry.powerKw : 0, powerUnit), "sell-row")}
+          ${matrixRow("↔ Р”С–СЏ", entries, (entry) => modeLabel(entry.mode), "action-row")}
+          ${matrixRow("💵 РџСЂРёР±СѓС‚РѕРє", entries, (entry) => formatNumber(entry.profit, 0), "profit-row")}
+          ${matrixRow("🔋 SOC (kWh)", entries, (entry) => formatNumber(entry.batteryEnergyKwh || 0, 0), "soc-row")}
+          <tr class="total-row">
+            <th>Σ Р’РЎР¬РћР“Рћ</th>
+            <td colspan="24">${formatNumber(totalProfit, 0)} в‚ґ</td>
+          </tr>
+        </tbody>
+      </table>
+      <table class="plan-matrix plan-matrix-mobile">
         <thead>
           <tr>
             <th>Година</th>

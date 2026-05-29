@@ -414,6 +414,15 @@ h2 {
   table-layout: fixed;
 }
 
+.plan-matrix-wide {
+  min-width: 1540px;
+}
+
+.plan-matrix-mobile {
+  display: none;
+  min-width: 620px;
+}
+
 .plan-matrix th,
 .plan-matrix td {
   height: 28px;
@@ -1428,6 +1437,15 @@ h2,
   min-width: 760px;
 }
 
+.plan-matrix-wide {
+  min-width: 1540px;
+}
+
+.plan-matrix-mobile {
+  display: none;
+  min-width: 620px;
+}
+
 .plan-matrix th,
 .plan-matrix td,
 .sensor-table th,
@@ -1715,6 +1733,15 @@ h2,
     min-width: 680px;
   }
 
+  .plan-matrix-wide {
+    display: none;
+  }
+
+  .plan-matrix-mobile {
+    display: table;
+    min-width: 620px;
+  }
+
   .plan-matrix th:first-child,
   .plan-matrix td:first-child {
     width: 84px;
@@ -1723,10 +1750,6 @@ h2,
 
   .sensor-table {
     min-width: 760px;
-  }
-
-  .plan-matrix-desktop {
-    display: table;
   }
 
   .matrix-wrap {
