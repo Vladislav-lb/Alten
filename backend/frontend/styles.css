@@ -409,7 +409,7 @@ h2 {
 
 .plan-matrix {
   width: 100%;
-  min-width: 1540px;
+  min-width: 760px;
   border-collapse: collapse;
   table-layout: fixed;
 }
@@ -427,8 +427,8 @@ h2 {
 
 .plan-matrix th:first-child,
 .plan-matrix td:first-child {
-  width: 150px;
-  min-width: 150px;
+  width: 112px;
+  min-width: 112px;
   text-align: left;
 }
 
@@ -451,7 +451,7 @@ h2 {
 }
 
 .plan-matrix input {
-  width: 42px;
+  width: 76px;
   min-height: 20px;
   padding: 0 4px;
   text-align: center;
@@ -1425,7 +1425,7 @@ h2,
 }
 
 .plan-matrix {
-  min-width: 1280px;
+  min-width: 760px;
 }
 
 .plan-matrix th,
@@ -1712,13 +1712,13 @@ h2,
   }
 
   .plan-matrix {
-    min-width: 980px;
+    min-width: 680px;
   }
 
   .plan-matrix th:first-child,
   .plan-matrix td:first-child {
-    width: 118px;
-    min-width: 118px;
+    width: 84px;
+    min-width: 84px;
   }
 
   .sensor-table {
@@ -1726,19 +1726,15 @@ h2,
   }
 
   .plan-matrix-desktop {
-    display: none;
+    display: table;
   }
 
   .matrix-wrap {
-    overflow: visible;
-    border: 0;
-    background: transparent;
+    overflow: auto;
   }
 
   .mobile-plan-list {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    display: none;
   }
 }
 
@@ -1901,8 +1897,7 @@ h2,
   }
 
   .mobile-plan-list {
-    grid-template-columns: 1fr;
-    gap: 7px;
+    display: none;
   }
 
   .mobile-plan-card,
@@ -2040,7 +2035,7 @@ h2,
   }
 
   .plan-matrix {
-    min-width: 860px;
+    min-width: 620px;
   }
 
   .plan-matrix th,
@@ -2051,7 +2046,7 @@ h2,
   }
 
   .plan-matrix input {
-    width: 36px;
+    width: 54px;
   }
 }
 

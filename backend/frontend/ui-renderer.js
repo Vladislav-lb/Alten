@@ -586,19 +586,21 @@ function renderPlanMatrix(plan, powerUnit = "kw") {
         <thead>
           <tr>
             <th>Година</th>
-            ${HOURS.map((hour) => `<th>${hour}</th>`).join("")}
+            <th>Ціна РДН</th>
+            <th>Купівля (${unitLabel})</th>
+            <th>Продаж (${unitLabel})</th>
+            <th>Дія</th>
+            <th>Прибуток</th>
+            <th>SOC</th>
           </tr>
         </thead>
         <tbody>
-          ${matrixRow("💰 Ціна РДН", entries, (entry) => formatNumber(entry.price, 0), "price-row")}
-          ${inputMatrixRow(`🔋 Купівля (${unitLabel})`, entries, "plan-buy", (entry) => formatPowerValue(entry.mode === "charge" ? entry.powerKw : 0, powerUnit), "buy-row")}
-          ${inputMatrixRow(`⚡ Продаж (${unitLabel})`, entries, "plan-sell", (entry) => formatPowerValue(entry.mode === "discharge" ? entry.powerKw : 0, powerUnit), "sell-row")}
-          ${matrixRow("↔ Дія", entries, (entry) => modeLabel(entry.mode), "action-row")}
-          ${matrixRow("💰 Прибуток", entries, (entry) => formatNumber(entry.profit, 0), "profit-row")}
-          ${matrixRow("🔋 SOC (kWh)", entries, (entry) => formatNumber(entry.batteryEnergyKwh || 0, 0), "soc-row")}
+          ${entries.map((entry, index) => renderPlanHourTableRow(entry, index, powerUnit)).join("")}
           <tr class="total-row">
             <th>ВСЬОГО</th>
-            <td colspan="24">${formatNumber(totalProfit, 0)} ₴</td>
+            <td colspan="4">24 години</td>
+            <td>${formatNumber(totalProfit, 0)} ₴</td>
+            <td>${formatNumber(entries.at(-1)?.batteryEnergyKwh || 0, 0)} kWh</td>
           </tr>
         </tbody>
       </table>
@@ -610,6 +612,26 @@ function renderPlanMatrix(plan, powerUnit = "kw") {
         </article>
       </div>
     </div>
+  `;
+}
+
+function renderPlanHourTableRow(entry, index, powerUnit) {
+  const buyValue = entry.mode === "charge" ? entry.powerKw : 0;
+  const sellValue = entry.mode === "discharge" ? entry.powerKw : 0;
+  return `
+    <tr class="plan-hour-table-row ${entry.mode || "idle"}">
+      <th><span class="hour-chip">${HOURS[index]}</span></th>
+      <td class="price-cell">${formatNumber(entry.price, 0)}</td>
+      <td class="buy-cell">
+        <input data-field="plan-buy" data-id="${entry.id}" type="number" min="0" step="1" value="${formatPlainNumber(formatPowerValue(buyValue, powerUnit))}">
+      </td>
+      <td class="sell-cell">
+        <input data-field="plan-sell" data-id="${entry.id}" type="number" min="0" step="1" value="${formatPlainNumber(formatPowerValue(sellValue, powerUnit))}">
+      </td>
+      <td class="action-cell">${modeLabel(entry.mode)}</td>
+      <td class="profit-cell">${formatNumber(entry.profit, 0)} ₴</td>
+      <td class="soc-cell">${formatNumber(entry.batteryEnergyKwh || 0, 0)} kWh</td>
+    </tr>
   `;
 }
 
