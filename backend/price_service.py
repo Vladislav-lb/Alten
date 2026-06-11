@@ -38,7 +38,6 @@ class MarketPriceService:
         except Exception:
             if cached:
                 return cached
-            raise
 
         if cached:
             return cached
