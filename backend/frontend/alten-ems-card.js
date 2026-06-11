@@ -38,7 +38,7 @@ class AltenEmsCard extends HTMLElement {
     this.activeView = "control";
     this.activeScope = "clients";
     this.activeGroup = "ALTEN";
-    this.selectedPlanDate = defaultPlanDate();
+    this.selectedPlanDate = readStoredPlanDate() || defaultPlanDate();
     this.treeCollapsed = false;
     this.powerUnit = "kw";
     this.theme = readStoredTheme() || normalizeTheme(this.config.theme);
@@ -94,7 +94,7 @@ class AltenEmsCard extends HTMLElement {
 
   setConfig(config) {
     this.config = deepMerge(DEFAULT_CONFIG, config || {});
-    this.selectedPlanDate = config?.plan_date || this.selectedPlanDate || defaultPlanDate();
+    this.selectedPlanDate = normalizePlanDate(config?.plan_date || this.selectedPlanDate || readStoredPlanDate()) || defaultPlanDate();
     this.theme = readStoredTheme() || normalizeTheme(config?.theme || this.config.theme);
     this.haService.setConfig(this.config);
     this.priceService.setConfig(this.config);
@@ -133,7 +133,7 @@ class AltenEmsCard extends HTMLElement {
     this.renderer.addEventListener("input", (event) => this.handleInput(event.detail));
   }
 
-  handleInput({ field, id, value }) {
+  handleInput({ field, id, value, eventType }) {
     if (field === "battery-enabled") {
       const battery = this.batteryManager.setEnabled(id, value);
       this.backendService.saveBattery(battery).catch((error) => this.addAlert(error.message, "warning"));
@@ -159,7 +159,11 @@ class AltenEmsCard extends HTMLElement {
     }
 
     if (field === "plan-date") {
-      this.selectedPlanDate = value || defaultPlanDate();
+      if (eventType && eventType !== "change") return;
+      const nextDate = normalizePlanDate(value);
+      if (!nextDate) return;
+      this.selectedPlanDate = nextDate;
+      storePlanDate(this.selectedPlanDate);
       this.priceService.setDate(this.selectedPlanDate);
       this.backendPlanResult = null;
       this.planOverrides = [];
@@ -546,6 +550,29 @@ function defaultPlanDate() {
   const date = new Date();
   date.setDate(date.getDate() + 1);
   return date.toISOString().slice(0, 10);
+}
+
+function normalizePlanDate(value) {
+  const text = String(value || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return null;
+  const date = new Date(`${text}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? null : text;
+}
+
+function readStoredPlanDate() {
+  try {
+    return normalizePlanDate(localStorage.getItem("alten-ems-plan-date"));
+  } catch {
+    return null;
+  }
+}
+
+function storePlanDate(value) {
+  try {
+    localStorage.setItem("alten-ems-plan-date", normalizePlanDate(value) || defaultPlanDate());
+  } catch {
+    // localStorage can be unavailable in restricted embeds.
+  }
 }
 
 if (!customElements.get("alten-ems-card")) {

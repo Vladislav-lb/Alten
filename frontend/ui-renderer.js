@@ -197,11 +197,13 @@ export class UIRenderer extends EventTarget {
   handleInput(event) {
     const target = event.target;
     if (!target.dataset.field) return;
+    if (target.dataset.field === "plan-date" && event.type !== "change") return;
     this.dispatchEvent(new CustomEvent("input", {
       detail: {
         field: target.dataset.field,
         id: target.dataset.id,
         value: target.type === "checkbox" ? target.checked : target.value,
+        eventType: event.type,
       },
     }));
   }
@@ -279,6 +281,7 @@ export class UIRenderer extends EventTarget {
 
   restoreFocusedField(focused) {
     if (!focused) return;
+    if (focused.field === "plan-date") return;
     const selector = `[data-field="${focused.field}"][data-id="${focused.id}"]`;
     const fallbackSelector = `[data-field="${focused.field}"]`;
     const target = this.root.querySelector(selector) || this.root.querySelector(fallbackSelector);
