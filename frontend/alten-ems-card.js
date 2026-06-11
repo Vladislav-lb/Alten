@@ -39,6 +39,7 @@ class AltenEmsCard extends HTMLElement {
     this.activeScope = "clients";
     this.activeGroup = "ALTEN";
     this.selectedPlanDate = readStoredPlanDate() || defaultPlanDate();
+    this.configDateInitialized = false;
     this.priceLoading = false;
     this.treeCollapsed = false;
     this.powerUnit = "kw";
@@ -95,7 +96,8 @@ class AltenEmsCard extends HTMLElement {
 
   setConfig(config) {
     this.config = deepMerge(DEFAULT_CONFIG, config || {});
-    this.selectedPlanDate = normalizePlanDate(config?.plan_date || this.selectedPlanDate || readStoredPlanDate()) || defaultPlanDate();
+    this.selectedPlanDate = this.resolvePlanDate(config);
+    this.configDateInitialized = true;
     this.theme = readStoredTheme() || normalizeTheme(config?.theme || this.config.theme);
     this.haService.setConfig(this.config);
     this.priceService.setConfig(this.config);
@@ -450,18 +452,26 @@ class AltenEmsCard extends HTMLElement {
     this.priceService.setDate(this.selectedPlanDate);
     this.backendPlanResult = null;
     this.planOverrides = [];
-    await this.refreshPricesForSelectedDate();
+    await this.refreshPricesForSelectedDate({ renderBefore: false });
   }
 
-  async refreshPricesForSelectedDate() {
+  async refreshPricesForSelectedDate({ renderBefore = true } = {}) {
     this.priceLoading = true;
-    this.render();
+    if (renderBefore) this.render();
     try {
       await this.priceService.refresh({ date: this.selectedPlanDate });
     } finally {
       this.priceLoading = false;
       this.render();
     }
+  }
+
+  resolvePlanDate(config = {}) {
+    const selectedDate = normalizePlanDate(this.selectedPlanDate);
+    const storedDate = readStoredPlanDate();
+    const configuredDate = normalizePlanDate(config?.plan_date);
+    if (!this.configDateInitialized && configuredDate && !storedDate) return configuredDate;
+    return selectedDate || storedDate || configuredDate || defaultPlanDate();
   }
 
   setTheme(theme) {
