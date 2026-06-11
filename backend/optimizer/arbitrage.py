@@ -97,15 +97,15 @@ def optimize_arbitrage(
         power_kw = 0.0
         reason = "Hold for better spread"
 
-if index in discharge_slots and soc > min_soc + 0.5 and profitable_sell:
-    mode = "discharge"
-    power_kw = battery.max_discharge_kw
-    reason = "Sell in expensive hour"
+        if index in discharge_slots and soc > min_soc + 0.5 and profitable_sell:
+            mode = "discharge"
+            power_kw = battery.max_discharge_kw
+            reason = "Sell in expensive hour"
 
-elif index in charge_slots and soc < max_soc - 5 and profitable_buy:
-    mode = "charge"
-    power_kw = battery.max_charge_kw
-    reason = "Buy in cheap hour"
+        elif index in charge_slots and soc < max_soc - 5 and profitable_buy:
+            mode = "charge"
+            power_kw = battery.max_charge_kw
+            reason = "Buy in cheap hour"
 
         bounded = _bound(mode, power_kw, battery, soc, min_soc, max_soc, interval_hours, charge_efficiency, discharge_efficiency)
         mode, power_kw, grid_energy_kwh, battery_energy_kwh = bounded
