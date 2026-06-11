@@ -42,6 +42,7 @@ export class UIRenderer extends EventTarget {
       powerUnit = "kw",
       theme = "dark",
       settingsOpen = false,
+      priceLoading = false,
       manualControl = {},
       selectedPlanDate = tomorrowValue(),
     } = state;
@@ -116,12 +117,20 @@ export class UIRenderer extends EventTarget {
               <div class="plan-header">
                 <h2>📊 План роботи BESS</h2>
                 <div class="plan-toolbar">
+                  <button class="date-step" data-action="date-prev" title="Попередній день">‹</button>
                   <label class="date-picker">
                     <input data-field="plan-date" type="date" value="${escapeHtml(selectedPlanDate)}">
                   </label>
+                  <button class="date-step" data-action="date-next" title="Наступний день">›</button>
+                  <button class="price-refresh ${priceLoading ? "loading" : ""}" data-action="refresh-prices" title="Оновити ціни для вибраної дати">${priceLoading ? "⟳" : "↻"} Ціни</button>
                   <button data-action="export-plan">📊 Експорт</button>
                   <button data-action="toggle-unit">${unitLabel} ↔ ${powerUnit === "mw" ? "kW" : "MW"}</button>
                 </div>
+              </div>
+
+              <div class="date-status ${priceLoading ? "loading" : ""}">
+                <span>${priceLoading ? "Оновлення цін через API..." : "Дані таблиці для вибраної дати"}</span>
+                <strong>${escapeHtml(selectedPlanDate)}</strong>
               </div>
 
               <div class="summary-strip">
@@ -197,7 +206,6 @@ export class UIRenderer extends EventTarget {
   handleInput(event) {
     const target = event.target;
     if (!target.dataset.field) return;
-    if (target.dataset.field === "plan-date" && event.type !== "change") return;
     this.dispatchEvent(new CustomEvent("input", {
       detail: {
         field: target.dataset.field,

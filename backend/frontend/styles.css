@@ -379,6 +379,42 @@ h2 {
   font-weight: 700;
 }
 
+.date-step {
+  width: 34px;
+  min-width: 34px;
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.price-refresh.loading {
+  border-color: #27aee4;
+  color: #0f8fc4;
+}
+
+.date-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 10px 0 0;
+  border: 1px solid var(--ems-border-soft, #d9e5ed);
+  border-radius: 5px;
+  background: var(--ems-panel-soft, #f7fbff);
+  padding: 8px 10px;
+  color: var(--ems-muted, #5d6b78);
+  font-size: 12px;
+}
+
+.date-status strong {
+  color: var(--ems-text, #1e2933);
+}
+
+.date-status.loading {
+  border-color: var(--ems-cyan, #65c8f5);
+  background: color-mix(in srgb, var(--ems-cyan, #65c8f5) 12%, var(--ems-panel-soft, #eefaff));
+}
+
 .summary-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

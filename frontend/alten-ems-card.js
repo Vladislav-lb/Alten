@@ -39,6 +39,7 @@ class AltenEmsCard extends HTMLElement {
     this.activeScope = "clients";
     this.activeGroup = "ALTEN";
     this.selectedPlanDate = readStoredPlanDate() || defaultPlanDate();
+    this.priceLoading = false;
     this.treeCollapsed = false;
     this.powerUnit = "kw";
     this.theme = readStoredTheme() || normalizeTheme(this.config.theme);
@@ -69,7 +70,7 @@ class AltenEmsCard extends HTMLElement {
     this.priceService.startAutoRefresh();
     await this.refreshBackendState();
     this.startTelemetryRefresh();
-    this.priceService.refresh({ date: this.selectedPlanDate }).catch((error) => this.addAlert(error.message, "warning"));
+    this.refreshPricesForSelectedDate().catch((error) => this.addAlert(error.message, "warning"));
     this.render();
   }
 
@@ -159,16 +160,9 @@ class AltenEmsCard extends HTMLElement {
     }
 
     if (field === "plan-date") {
-      if (eventType && eventType !== "change") return;
       const nextDate = normalizePlanDate(value);
-      if (!nextDate) return;
-      this.selectedPlanDate = nextDate;
-      storePlanDate(this.selectedPlanDate);
-      this.priceService.setDate(this.selectedPlanDate);
-      this.backendPlanResult = null;
-      this.planOverrides = [];
-      this.priceService.refresh({ date: this.selectedPlanDate }).catch((error) => this.addAlert(error.message, "warning"));
-      this.render();
+      if (!nextDate || nextDate === this.selectedPlanDate) return;
+      this.changePlanDate(value).catch((error) => this.addAlert(error.message, "warning"));
       return;
     }
 
@@ -243,8 +237,11 @@ class AltenEmsCard extends HTMLElement {
     try {
       if (action === "refresh") {
         await this.refreshBackendState();
-        await this.priceService.refresh({ date: this.selectedPlanDate });
+        await this.refreshPricesForSelectedDate();
       }
+      if (action === "refresh-prices") await this.refreshPricesForSelectedDate();
+      if (action === "date-prev") await this.changePlanDate(shiftPlanDate(this.selectedPlanDate, -1));
+      if (action === "date-next") await this.changePlanDate(shiftPlanDate(this.selectedPlanDate, 1));
       if (action === "open-monitor") {
         this.activeView = "monitoring";
       }
@@ -415,6 +412,7 @@ class AltenEmsCard extends HTMLElement {
       powerUnit: this.powerUnit,
       theme: this.theme,
       settingsOpen: this.settingsOpen,
+      priceLoading: this.priceLoading,
       manualControl: {
         target: this.manualTarget,
         chargePowerKw: this.manualChargePowerKw,
@@ -441,6 +439,29 @@ class AltenEmsCard extends HTMLElement {
   addAlert(message, level = "warning") {
     this.alerts.push({ message, level, time: new Date().toISOString() });
     this.render();
+  }
+
+  async changePlanDate(value) {
+    const nextDate = normalizePlanDate(value);
+    if (!nextDate) return;
+    if (nextDate === this.selectedPlanDate) return;
+    this.selectedPlanDate = nextDate;
+    storePlanDate(this.selectedPlanDate);
+    this.priceService.setDate(this.selectedPlanDate);
+    this.backendPlanResult = null;
+    this.planOverrides = [];
+    await this.refreshPricesForSelectedDate();
+  }
+
+  async refreshPricesForSelectedDate() {
+    this.priceLoading = true;
+    this.render();
+    try {
+      await this.priceService.refresh({ date: this.selectedPlanDate });
+    } finally {
+      this.priceLoading = false;
+      this.render();
+    }
   }
 
   setTheme(theme) {
@@ -549,6 +570,13 @@ function storeTheme(theme) {
 function defaultPlanDate() {
   const date = new Date();
   date.setDate(date.getDate() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
+function shiftPlanDate(value, deltaDays) {
+  const normalized = normalizePlanDate(value) || defaultPlanDate();
+  const date = new Date(`${normalized}T00:00:00`);
+  date.setDate(date.getDate() + deltaDays);
   return date.toISOString().slice(0, 10);
 }
 
