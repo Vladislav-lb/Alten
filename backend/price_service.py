@@ -7,6 +7,10 @@ from typing import Any
 from urllib.parse import urlencode
 
 
+class PriceDataUnavailable(RuntimeError):
+    pass
+
+
 class MarketPriceService:
     def __init__(
         self,
@@ -16,12 +20,14 @@ class MarketPriceService:
         prices_url: str,
         zone_eic: str,
         date_param: str = "date",
+        allow_fallback: bool = False,
         fallback_prices: list[float] | None = None,
     ) -> None:
         self.api_key = api_key
         self.prices_url = prices_url
         self.zone_eic = normalize_zone(zone_eic)
         self.date_param = date_param or "date"
+        self.allow_fallback = allow_fallback
         self.fallback_prices = fallback_prices or []
         self.cache_path = data_dir / "prices_cache.json"
 
@@ -38,9 +44,13 @@ class MarketPriceService:
         except Exception:
             if cached:
                 return cached
+            if self.api_key and not self.allow_fallback:
+                raise PriceDataUnavailable(f"Market prices are unavailable for {target_day.isoformat()}") from None
 
         if cached:
             return cached
+        if self.api_key and not self.allow_fallback:
+            raise PriceDataUnavailable(f"Market prices are unavailable for {target_day.isoformat()}")
         return self.fallback_for_day(target_day, target_zone)
 
     async def fetch_oree_prices(self, trade_day: date, zone_eic: str) -> list[dict[str, Any]]:

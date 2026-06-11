@@ -42,6 +42,7 @@ if [ -f "$OPTIONS_FILE" ]; then
   export ALTEN_EMS_OREE_PRICES_URL="$(read_option oree_prices_url "https://www.oree.com.ua/index.php/api/damprices")"
   export ALTEN_EMS_OREE_ZONE_EIC="$(read_option oree_zone_eic "10Y1001C--000182")"
   export ALTEN_EMS_OREE_DATE_PARAM="$(read_option oree_date_param "date")"
+  export ALTEN_EMS_ALLOW_PRICE_FALLBACK="$(read_option allow_price_fallback "false")"
 fi
 
 mkdir -p /data/history

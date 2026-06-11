@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1] / "backend"))
 
-from price_service import MarketPriceService, normalize_oree_payload
+from price_service import MarketPriceService, PriceDataUnavailable, normalize_oree_payload
 
 
 class PriceServiceTests(unittest.TestCase):
@@ -32,7 +32,7 @@ class PriceServiceTests(unittest.TestCase):
         self.assertEqual(prices[1]["price"], 7600.50)
         self.assertEqual(prices[0]["source"], "oree")
 
-    def test_past_date_falls_back_to_selected_day_when_api_is_unavailable(self):
+    def test_api_key_mode_does_not_silently_fall_back_when_api_is_unavailable(self):
         class FailingMarketPriceService(MarketPriceService):
             async def fetch_oree_prices(self, trade_day, zone_eic):
                 raise RuntimeError("external API unavailable")
@@ -44,6 +44,28 @@ class PriceServiceTests(unittest.TestCase):
                     api_key="test",
                     prices_url="https://example.test/api/damprices",
                     zone_eic="10Y1001C--000182",
+                    fallback_prices=list(range(24)),
+                )
+                return await service.get_prices("2026-05-01")
+
+        import asyncio
+
+        with self.assertRaises(PriceDataUnavailable):
+            asyncio.run(run_case())
+
+    def test_explicit_fallback_uses_selected_day_when_api_is_unavailable(self):
+        class FailingMarketPriceService(MarketPriceService):
+            async def fetch_oree_prices(self, trade_day, zone_eic):
+                raise RuntimeError("external API unavailable")
+
+        async def run_case():
+            with TemporaryDirectory() as directory:
+                service = FailingMarketPriceService(
+                    data_dir=Path(directory),
+                    api_key="test",
+                    prices_url="https://example.test/api/damprices",
+                    zone_eic="10Y1001C--000182",
+                    allow_fallback=True,
                     fallback_prices=list(range(24)),
                 )
                 return await service.get_prices("2026-05-01")

@@ -46,6 +46,21 @@ export class PriceService extends EventTarget {
 
   async refresh({ date = this.date } = {}) {
     this.date = date || this.date;
+    if (this.isStrictApiMode()) {
+      try {
+        const prices = normalizePrices(await this.fetchFromApi());
+        this.prices = prices;
+        if (prices.length) saveCachedPrices(prices, this.date);
+        this.dispatchEvent(new CustomEvent("prices", { detail: { prices } }));
+        return prices;
+      } catch (error) {
+        this.prices = [];
+        this.dispatchEvent(new CustomEvent("prices", { detail: { prices: [] } }));
+        this.emitError(error);
+        return [];
+      }
+    }
+
     const sources = [
       () => this.fetchFromApi(),
       () => this.fetchFromHomeAssistant(),
@@ -148,6 +163,10 @@ export class PriceService extends EventTarget {
       next.searchParams.set("zone_eic", this.config.price_api_zone_eic);
     }
     return next.toString();
+  }
+
+  isStrictApiMode() {
+    return this.config.strict_price_api !== false && Boolean(this.config.price_api_url || this.config.backend_url || this.config.backendUrl);
   }
 }
 

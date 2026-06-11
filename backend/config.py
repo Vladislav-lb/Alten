@@ -24,6 +24,7 @@ class Settings:
     oree_prices_url: str
     oree_zone_eic: str
     oree_date_param: str
+    allow_price_fallback: bool
 
 
 def load_settings() -> Settings:
@@ -45,6 +46,7 @@ def load_settings() -> Settings:
         oree_prices_url=os.getenv("ALTEN_EMS_OREE_PRICES_URL", "https://www.oree.com.ua/index.php/api/damprices"),
         oree_zone_eic=os.getenv("ALTEN_EMS_OREE_ZONE_EIC", "10Y1001C--000182"),
         oree_date_param=os.getenv("ALTEN_EMS_OREE_DATE_PARAM", "date"),
+        allow_price_fallback=parse_bool(os.getenv("ALTEN_EMS_ALLOW_PRICE_FALLBACK", "false")),
     )
 
 
@@ -54,3 +56,7 @@ def parse_csv(value: str) -> list[str]:
 
 def empty_to_none(value: str | None) -> str | None:
     return value if value else None
+
+
+def parse_bool(value: str | None) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
