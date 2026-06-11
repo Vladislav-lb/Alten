@@ -112,7 +112,7 @@ export class UIRenderer extends EventTarget {
             ${activeView === "monitoring" ? renderMonitoringView(batteries, virtualBattery, selectedBatteryId) : ""}
 
             <section class="plan-card ${activeView !== "control" ? "view-hidden" : ""}">
-              <div class="day-tab">ЗАВТРА</div>
+              <div class="day-tab">${formatPlanDate(selectedPlanDate)}</div>
               <div class="plan-header">
                 <h2>📊 План роботи BESS</h2>
                 <div class="plan-toolbar">
@@ -208,11 +208,12 @@ export class UIRenderer extends EventTarget {
 
   downloadPlanCsv() {
     const csv = planToCsv(this.state?.planResult?.plan || []);
+    const planDate = this.state?.selectedPlanDate || new Date().toISOString().slice(0, 10);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `alten-ems-plan-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `alten-ems-plan-${planDate}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   }
@@ -966,6 +967,17 @@ function tomorrowValue() {
   const date = new Date();
   date.setDate(date.getDate() + 1);
   return date.toISOString().slice(0, 10);
+}
+
+function formatPlanDate(value) {
+  if (!value) return "ПЛАН";
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("uk-UA", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
 }
 
 function modeLabel(mode) {

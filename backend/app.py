@@ -77,7 +77,7 @@ class BatteryModel(BaseModel):
 
 
 class OptimizeRequest(BaseModel):
-    prices: list[float] | None = None
+    prices: list[Any] | None = None
     battery: BatteryModel | None = None
     min_margin: float = Field(default=500, ge=0)
     reserve_soc_percent: float | None = Field(default=None, ge=0, le=100)
@@ -316,19 +316,13 @@ async def publish_mqtt_command(battery_id: str, mode: Literal["idle", "charge", 
 
 
 def build_plan(
-    prices: list[float],
+    prices: list[Any],
     battery: BatteryModel,
     min_margin: float,
     reserve_soc_percent: float | None,
     cycle_cost_per_mwh: float,
 ) -> dict[str, Any]:
-    slots = [
-        PriceSlot(
-            time=datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0) + timedelta(hours=index),
-            price=price,
-        )
-        for index, price in enumerate(prices[:24])
-    ]
+    slots = [price_slot_from_input(item, index) for index, item in enumerate(prices[:24])]
     optimized = optimize_arbitrage(
         prices=slots,
         battery=BatteryEnvelope(
@@ -377,6 +371,24 @@ def build_plan(
             "final_soc": slot_payload[-1]["soc_end"] if slot_payload else battery.soc_percent,
         },
     }
+
+
+def price_slot_from_input(item: Any, index: int) -> PriceSlot:
+    if isinstance(item, dict):
+        price = float(item.get("price") or item.get("value") or item.get("rdn") or 0)
+        raw_time = item.get("time") or item.get("datetime") or item.get("start")
+        return PriceSlot(time=parse_slot_time(raw_time, index), price=price)
+    return PriceSlot(time=parse_slot_time(None, index), price=float(item or 0))
+
+
+def parse_slot_time(value: Any, index: int) -> datetime:
+    if isinstance(value, str) and value:
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+        except ValueError:
+            pass
+    return datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0) + timedelta(hours=index)
 
 
 async def get_batteries_with_telemetry() -> list[dict[str, Any]]:

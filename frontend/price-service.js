@@ -111,11 +111,11 @@ export class PriceService extends EventTarget {
   }
 
   async generateFallbackPrices() {
-    const now = new Date();
+    const base = this.date ? parseLocalDate(this.date) : new Date();
     return Array.from({ length: 24 }, (_, index) => {
-      const time = new Date(now);
+      const time = new Date(base);
       time.setMinutes(0, 0, 0);
-      time.setHours(now.getHours() + index);
+      time.setHours(index);
       const peak = index >= 17 && index <= 21 ? 1.35 : 1;
       const night = index >= 0 && index <= 5 ? 0.72 : 1;
       return {
@@ -143,8 +143,8 @@ export class PriceService extends EventTarget {
     if (!this.date && !this.config.price_api_zone_eic) return url;
     const next = new URL(url, window.location.href);
     const dateParam = this.config.price_api_date_param || "date";
-    if (this.date && !next.searchParams.has(dateParam)) next.searchParams.set(dateParam, this.date);
-    if (this.config.price_api_zone_eic && !next.searchParams.has("zone_eic")) {
+    if (this.date) next.searchParams.set(dateParam, this.date);
+    if (this.config.price_api_zone_eic) {
       next.searchParams.set("zone_eic", this.config.price_api_zone_eic);
     }
     return next.toString();
@@ -191,4 +191,10 @@ function ensureTrailingSlash(url) {
 
 function cacheKey(date = null) {
   return date ? `${CACHE_KEY}-${date}` : CACHE_KEY;
+}
+
+function parseLocalDate(value) {
+  const [year, month, day] = String(value).split("-").map(Number);
+  if (!year || !month || !day) return new Date();
+  return new Date(year, month - 1, day, 0, 0, 0, 0);
 }

@@ -25,7 +25,11 @@ export class BackendService extends EventTarget {
 
   async optimizePlan({ prices = [], virtualBattery, options = {} }) {
     const payload = await this.postJson("/api/plan/optimize", {
-      prices: prices.map((entry) => Number(entry.price ?? entry.value ?? entry)),
+      prices: prices.map((entry, index) => ({
+        time: entry.time || entry.datetime || entry.start || null,
+        period: Number(entry.period ?? index + 1),
+        price: Number(entry.price ?? entry.value ?? entry),
+      })),
       battery: backendBatteryFromVirtual(virtualBattery, options),
       min_margin: Number(options.minMargin ?? this.config.min_margin ?? 500),
       reserve_soc_percent: Number(options.reserveSoc ?? this.config.reserve_soc ?? 10),
