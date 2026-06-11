@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1] / "backend"))
 
-from price_service import MarketPriceService, PriceDataUnavailable, normalize_oree_payload
+from price_service import MarketPriceService, PriceDataUnavailable, normalize_oree_history, normalize_oree_payload
 
 
 class PriceServiceTests(unittest.TestCase):
@@ -31,6 +31,51 @@ class PriceServiceTests(unittest.TestCase):
         self.assertEqual(prices[0]["price"], 9000.10)
         self.assertEqual(prices[1]["price"], 7600.50)
         self.assertEqual(prices[0]["source"], "oree")
+
+    def test_normalizes_all_oree_records_for_history_storage(self):
+        payload = [
+            {
+                "zone_eic": "10YUA-WEPS-----0",
+                "trade_day": "2026-06-12",
+                "data": [{"period": "1", "price": "100.00"}],
+            },
+            {
+                "zone_eic": "10Y1001C--000182",
+                "trade_day": "2026-06-12",
+                "data": [{"period": "1", "price": "200.00"}],
+            },
+        ]
+
+        history = normalize_oree_history(payload)
+
+        self.assertEqual(len(history), 2)
+        self.assertEqual(history[0][0].isoformat(), "2026-06-12")
+        self.assertEqual(history[0][1], "10YUA-WEPS-----0")
+        self.assertEqual(history[1][1], "10Y1001C--000182")
+        self.assertEqual(history[1][2][0]["price"], 200.0)
+
+    def test_get_prices_reads_saved_history_for_selected_date(self):
+        payload = [
+            {
+                "zone_eic": "10Y1001C--000182",
+                "trade_day": "2026-06-12",
+                "data": [{"period": "1", "price": "200.00"}],
+            }
+        ]
+
+        with TemporaryDirectory() as directory:
+            service = MarketPriceService(
+                data_dir=Path(directory),
+                api_key="test",
+                prices_url="https://example.test/api/damprices",
+                zone_eic="10Y1001C--000182",
+            )
+            service.write_payload_history(payload)
+            prices = service.read_cache(date(2026, 6, 12), "10Y1001C--000182")
+
+        self.assertEqual(len(prices), 1)
+        self.assertEqual(prices[0]["trade_day"], "2026-06-12")
+        self.assertEqual(prices[0]["price"], 200.0)
 
     def test_api_key_mode_does_not_silently_fall_back_when_api_is_unavailable(self):
         class FailingMarketPriceService(MarketPriceService):

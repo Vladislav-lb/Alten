@@ -192,6 +192,11 @@ Copy `.env.example` to `.env` and configure:
 - `ALTEN_EMS_OREE_API_KEY` for RDN/DAM prices from Market Operator
 - `ALTEN_EMS_OREE_ZONE_EIC`, default `10Y1001C--000182` for OES Ukraine
 
+`DAMPRICES` publishes day-ahead prices for D+1. Alten EMS stores each
+received `trade_day` in the local price cache, so calendar dates can show
+historical prices only after they have been collected by the add-on or imported
+into the cache.
+
 ## Roadmap
 
 - Persist battery definitions in JSON or SQLite.

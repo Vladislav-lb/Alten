@@ -72,6 +72,7 @@ class MarketPriceService:
                 response.raise_for_status()
                 payload = await response.json(content_type=None)
 
+        self.write_payload_history(payload)
         return normalize_oree_payload(payload, trade_day, zone_eic)
 
     def read_cache(self, trade_day: date, zone_eic: str) -> list[dict[str, Any]]:
@@ -94,6 +95,11 @@ class MarketPriceService:
             "prices": prices,
         }
         self.cache_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    def write_payload_history(self, payload: Any) -> None:
+        for trade_day, zone_eic, prices in normalize_oree_history(payload):
+            if prices:
+                self.write_cache(trade_day, zone_eic, prices)
 
     def fallback_for_day(self, trade_day: date, zone_eic: str) -> list[dict[str, Any]]:
         return [
@@ -118,24 +124,45 @@ def normalize_oree_payload(payload: Any, trade_day: date, zone_eic: str) -> list
 
     requested_day = trade_day.isoformat()
     requested_zone = normalize_zone(zone_eic)
+    history = normalize_oree_history(payload)
     exact = [
-        record for record in payload
-        if normalize_zone(str(record.get("zone_eic", ""))) == requested_zone
-        and normalize_day(str(record.get("trade_day", ""))) == requested_day
+        prices for day, zone, prices in history
+        if day.isoformat() == requested_day and normalize_zone(zone) == requested_zone
     ]
     same_day = [
-        record for record in payload
-        if normalize_day(str(record.get("trade_day", ""))) == requested_day
+        prices for day, _zone, prices in history
+        if day.isoformat() == requested_day
     ]
     candidates = exact or same_day
-    if not candidates:
+    return candidates[0] if candidates else []
+
+
+def normalize_oree_history(payload: Any) -> list[tuple[date, str, list[dict[str, Any]]]]:
+    if not isinstance(payload, list):
         return []
 
-    record = candidates[0]
+    history: list[tuple[date, str, list[dict[str, Any]]]] = []
+    for record in payload:
+        trade_day_text = normalize_day(str(record.get("trade_day", "")))
+        if not trade_day_text:
+            continue
+        try:
+            trade_day = parse_trade_day(trade_day_text)
+        except ValueError:
+            continue
+        zone_eic = normalize_zone(str(record.get("zone_eic", "")))
+        prices = normalize_oree_record(record, trade_day, zone_eic)
+        if prices:
+            history.append((trade_day, zone_eic, prices))
+    return history
+
+
+def normalize_oree_record(record: dict[str, Any], trade_day: date, zone_eic: str) -> list[dict[str, Any]]:
     data = record.get("data")
     if not isinstance(data, list):
         return []
 
+    requested_day = trade_day.isoformat()
     prices: list[dict[str, Any]] = []
     for item in data:
         try:
@@ -153,7 +180,7 @@ def normalize_oree_payload(payload: Any, trade_day: date, zone_eic: str) -> list
                 "price": price,
                 "currency": "UAH",
                 "market": "RDN",
-                "zone_eic": record.get("zone_eic") or zone_eic,
+                "zone_eic": zone_eic,
                 "trade_day": requested_day,
                 "source": "oree",
             }
