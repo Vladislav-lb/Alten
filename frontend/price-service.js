@@ -9,6 +9,7 @@ export class PriceService extends EventTarget {
     this.hass = hass;
     this.config = config;
     this.baseUrl = baseUrl;
+    this.date = null;
     this.prices = loadCachedPrices();
     this.refreshTimer = null;
   }
@@ -25,6 +26,11 @@ export class PriceService extends EventTarget {
     return this.prices;
   }
 
+  setDate(date) {
+    this.date = date || null;
+    this.prices = loadCachedPrices(this.date);
+  }
+
   startAutoRefresh() {
     this.stopAutoRefresh();
     const refreshMs = Number(this.config.price_refresh_ms) || DEFAULT_REFRESH_MS;
@@ -38,7 +44,8 @@ export class PriceService extends EventTarget {
     this.refreshTimer = null;
   }
 
-  async refresh() {
+  async refresh({ date = this.date } = {}) {
+    this.date = date || this.date;
     const sources = [
       () => this.fetchFromApi(),
       () => this.fetchFromHomeAssistant(),
@@ -52,7 +59,7 @@ export class PriceService extends EventTarget {
         const prices = normalizePrices(await source());
         if (prices.length) {
           this.prices = prices;
-          saveCachedPrices(prices);
+          saveCachedPrices(prices, this.date);
           this.dispatchEvent(new CustomEvent("prices", { detail: { prices } }));
           return prices;
         }
@@ -69,10 +76,11 @@ export class PriceService extends EventTarget {
     const url = this.config.price_api_url || "/api/prices";
     if (!url) return [];
 
-    const response = await fetch(this.resolveUrl(url), {
+    const response = await fetch(this.withDateQuery(this.resolveUrl(url)), {
       headers: {
         Accept: "application/json",
         ...(this.config.price_api_token ? { Authorization: `Bearer ${this.config.price_api_token}` } : {}),
+        ...(this.config.price_api_key ? { "X-API-KEY": this.config.price_api_key } : {}),
       },
     });
     if (!response.ok) throw new Error(`Price API failed: ${response.status}`);
@@ -99,7 +107,7 @@ export class PriceService extends EventTarget {
   }
 
   async fetchFromCache() {
-    return loadCachedPrices();
+    return loadCachedPrices(this.date);
   }
 
   async generateFallbackPrices() {
@@ -130,6 +138,17 @@ export class PriceService extends EventTarget {
     if (this.baseUrl) return new URL(path, this.baseUrl).toString();
     return path;
   }
+
+  withDateQuery(url) {
+    if (!this.date && !this.config.price_api_zone_eic) return url;
+    const next = new URL(url, window.location.href);
+    const dateParam = this.config.price_api_date_param || "date";
+    if (this.date && !next.searchParams.has(dateParam)) next.searchParams.set(dateParam, this.date);
+    if (this.config.price_api_zone_eic && !next.searchParams.has("zone_eic")) {
+      next.searchParams.set("zone_eic", this.config.price_api_zone_eic);
+    }
+    return next.toString();
+  }
 }
 
 function normalizeApiPayload(payload) {
@@ -141,9 +160,9 @@ function normalizeApiPayload(payload) {
   return [];
 }
 
-function loadCachedPrices() {
+function loadCachedPrices(date = null) {
   try {
-    const cached = localStorage.getItem(CACHE_KEY);
+    const cached = localStorage.getItem(cacheKey(date));
     if (!cached) return [];
     const payload = JSON.parse(cached);
     if (!Array.isArray(payload.prices)) return [];
@@ -155,9 +174,9 @@ function loadCachedPrices() {
   }
 }
 
-function saveCachedPrices(prices) {
+function saveCachedPrices(prices, date = null) {
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({
+    localStorage.setItem(cacheKey(date), JSON.stringify({
       cachedAt: new Date().toISOString(),
       prices,
     }));
@@ -168,4 +187,8 @@ function saveCachedPrices(prices) {
 
 function ensureTrailingSlash(url) {
   return url.endsWith("/") ? url : `${url}/`;
+}
+
+function cacheKey(date = null) {
+  return date ? `${CACHE_KEY}-${date}` : CACHE_KEY;
 }

@@ -43,6 +43,7 @@ export class UIRenderer extends EventTarget {
       theme = "dark",
       settingsOpen = false,
       manualControl = {},
+      selectedPlanDate = tomorrowValue(),
     } = state;
     const activeGroup = selectedGroup || groups[0]?.group || "ALTEN";
     const unitLabel = powerUnit === "mw" ? "MW" : "kW";
@@ -116,7 +117,7 @@ export class UIRenderer extends EventTarget {
                 <h2>📊 План роботи BESS</h2>
                 <div class="plan-toolbar">
                   <label class="date-picker">
-                    <input data-field="plan-date" type="date" value="${tomorrowValue()}">
+                    <input data-field="plan-date" type="date" value="${escapeHtml(selectedPlanDate)}">
                   </label>
                   <button data-action="export-plan">📊 Експорт</button>
                   <button data-action="toggle-unit">${unitLabel} ↔ ${powerUnit === "mw" ? "kW" : "MW"}</button>

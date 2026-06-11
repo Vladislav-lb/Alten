@@ -38,6 +38,7 @@ class AltenEmsCard extends HTMLElement {
     this.activeView = "control";
     this.activeScope = "clients";
     this.activeGroup = "ALTEN";
+    this.selectedPlanDate = defaultPlanDate();
     this.treeCollapsed = false;
     this.powerUnit = "kw";
     this.theme = readStoredTheme() || normalizeTheme(this.config.theme);
@@ -57,6 +58,7 @@ class AltenEmsCard extends HTMLElement {
       config: this.config,
       baseUrl: getDefaultBackendBase(import.meta.url),
     });
+    this.priceService.setDate(this.selectedPlanDate);
     this.renderer = new UIRenderer(this.contentRoot);
   }
 
@@ -67,7 +69,7 @@ class AltenEmsCard extends HTMLElement {
     this.priceService.startAutoRefresh();
     await this.refreshBackendState();
     this.startTelemetryRefresh();
-    this.priceService.refresh().catch((error) => this.addAlert(error.message, "warning"));
+    this.priceService.refresh({ date: this.selectedPlanDate }).catch((error) => this.addAlert(error.message, "warning"));
     this.render();
   }
 
@@ -92,9 +94,11 @@ class AltenEmsCard extends HTMLElement {
 
   setConfig(config) {
     this.config = deepMerge(DEFAULT_CONFIG, config || {});
+    this.selectedPlanDate = config?.plan_date || this.selectedPlanDate || defaultPlanDate();
     this.theme = readStoredTheme() || normalizeTheme(config?.theme || this.config.theme);
     this.haService.setConfig(this.config);
     this.priceService.setConfig(this.config);
+    this.priceService.setDate(this.selectedPlanDate);
     this.backendService.setConfig(this.config);
     this.batteryManager.setBatteries(this.config.batteries || []);
     this.refreshBackendState().catch((error) => this.addAlert(error.message, "warning"));
@@ -150,6 +154,16 @@ class AltenEmsCard extends HTMLElement {
 
     if (field === "theme") {
       this.setTheme(value);
+      this.render();
+      return;
+    }
+
+    if (field === "plan-date") {
+      this.selectedPlanDate = value || defaultPlanDate();
+      this.priceService.setDate(this.selectedPlanDate);
+      this.backendPlanResult = null;
+      this.planOverrides = [];
+      this.priceService.refresh({ date: this.selectedPlanDate }).catch((error) => this.addAlert(error.message, "warning"));
       this.render();
       return;
     }
@@ -225,7 +239,7 @@ class AltenEmsCard extends HTMLElement {
     try {
       if (action === "refresh") {
         await this.refreshBackendState();
-        await this.priceService.refresh();
+        await this.priceService.refresh({ date: this.selectedPlanDate });
       }
       if (action === "open-monitor") {
         this.activeView = "monitoring";
@@ -405,6 +419,7 @@ class AltenEmsCard extends HTMLElement {
         endTime: this.manualEndTime,
         useRange: this.manualUseRange,
       },
+      selectedPlanDate: this.selectedPlanDate,
     });
   }
 
@@ -525,6 +540,12 @@ function storeTheme(theme) {
   } catch {
     // localStorage can be unavailable in restricted embeds.
   }
+}
+
+function defaultPlanDate() {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  return date.toISOString().slice(0, 10);
 }
 
 if (!customElements.get("alten-ems-card")) {

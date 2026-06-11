@@ -38,6 +38,10 @@ if [ -f "$OPTIONS_FILE" ]; then
   export ALTEN_EMS_MODBUS_PORT="$(read_option modbus_port "502")"
   export ALTEN_EMS_MODBUS_UNIT="$(read_option modbus_unit "1")"
   export ALTEN_EMS_HA_URL="$(read_option ha_url "http://supervisor/core/api")"
+  export ALTEN_EMS_OREE_API_KEY="$(read_option oree_api_key "")"
+  export ALTEN_EMS_OREE_PRICES_URL="$(read_option oree_prices_url "https://www.oree.com.ua/index.php/api/damprices")"
+  export ALTEN_EMS_OREE_ZONE_EIC="$(read_option oree_zone_eic "10Y1001C--000182")"
+  export ALTEN_EMS_OREE_DATE_PARAM="$(read_option oree_date_param "date")"
 fi
 
 mkdir -p /data/history

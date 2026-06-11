@@ -14,6 +14,7 @@ from modbus.client import ModbusBatteryClient, PymodbusTcpTransport
 from mqtt.client import EmsMqttClient
 from optimizer.arbitrage import BatteryEnvelope, PriceSlot, optimize_arbitrage
 from plan_store import PlanStore
+from price_service import MarketPriceService
 from sensors import HomeAssistantSensorClient
 
 settings = load_settings()
@@ -48,6 +49,15 @@ DEFAULT_PRICES = [
 ]
 
 DEFAULT_BATTERIES = []
+
+price_service = MarketPriceService(
+    data_dir=settings.data_dir,
+    api_key=settings.oree_api_key,
+    prices_url=settings.oree_prices_url,
+    zone_eic=settings.oree_zone_eic,
+    date_param=settings.oree_date_param,
+    fallback_prices=DEFAULT_PRICES,
+)
 
 modbus_clients = {}
 battery_store = BatteryStore(settings.data_dir, DEFAULT_BATTERIES)
@@ -144,8 +154,11 @@ def dashboard():
 
 
 @app.get("/api/prices")
-def get_prices():
-    return DEFAULT_PRICES
+async def get_prices(date: str | None = None, zone_eic: str | None = None):
+    try:
+        return await price_service.get_prices(date, zone_eic)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.get("/api/batteries")

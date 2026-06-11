@@ -61,6 +61,7 @@ Verify:
 http://localhost:8000
 http://localhost:8000/dashboard
 http://localhost:8000/api/prices
+http://localhost:8000/api/prices?date=2026-05-30
 http://localhost:8000/api/batteries
 ```
 
@@ -188,6 +189,8 @@ Copy `.env.example` to `.env` and configure:
 - `ALTEN_EMS_MQTT_HOST`
 - `ALTEN_EMS_MODBUS_HOST`
 - `ALTEN_EMS_CORS_ORIGINS`
+- `ALTEN_EMS_OREE_API_KEY` for RDN/DAM prices from Market Operator
+- `ALTEN_EMS_OREE_ZONE_EIC`, default `10Y1001C--000182` for OES Ukraine
 
 ## Roadmap
 
