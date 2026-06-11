@@ -9,18 +9,24 @@ export class UIRenderer extends EventTarget {
     this.state = null;
     this.boundClick = (event) => this.handleClick(event);
     this.boundInput = (event) => this.handleInput(event);
+    this.boundFocusIn = (event) => this.handleFocusIn(event);
+    this.boundFocusOut = (event) => this.handleFocusOut(event);
   }
 
   async mount() {
     this.root.addEventListener("click", this.boundClick);
     this.root.addEventListener("change", this.boundInput);
     this.root.addEventListener("input", this.boundInput);
+    this.root.addEventListener("focusin", this.boundFocusIn);
+    this.root.addEventListener("focusout", this.boundFocusOut);
   }
 
   unmount() {
     this.root.removeEventListener("click", this.boundClick);
     this.root.removeEventListener("change", this.boundInput);
     this.root.removeEventListener("input", this.boundInput);
+    this.root.removeEventListener("focusin", this.boundFocusIn);
+    this.root.removeEventListener("focusout", this.boundFocusOut);
   }
 
   render(state) {
@@ -214,6 +220,22 @@ export class UIRenderer extends EventTarget {
         eventType: event.type,
       },
     }));
+  }
+
+  handleFocusIn(event) {
+    if (event.target?.dataset?.field !== "plan-date") return;
+    this.dispatchEvent(new CustomEvent("action", {
+      detail: { action: "date-focus" },
+    }));
+  }
+
+  handleFocusOut(event) {
+    if (event.target?.dataset?.field !== "plan-date") return;
+    setTimeout(() => {
+      this.dispatchEvent(new CustomEvent("action", {
+        detail: { action: "date-blur" },
+      }));
+    }, 250);
   }
 
   downloadPlanCsv() {

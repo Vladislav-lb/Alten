@@ -18,6 +18,7 @@ const DEFAULT_CONFIG = Object.freeze({
   theme: "dark",
   batteries: [],
 });
+const GLOBAL_STATE_KEY = "__altenEmsCardState";
 
 class AltenEmsCard extends HTMLElement {
   constructor() {
@@ -40,6 +41,8 @@ class AltenEmsCard extends HTMLElement {
     this.activeGroup = "ALTEN";
     this.selectedPlanDate = readStoredPlanDate() || defaultPlanDate();
     this.configDateInitialized = false;
+    this.datePickerActive = false;
+    this.pendingRender = false;
     this.priceLoading = false;
     this.treeCollapsed = false;
     this.powerUnit = "kw";
@@ -241,6 +244,13 @@ class AltenEmsCard extends HTMLElement {
         await this.refreshBackendState();
         await this.refreshPricesForSelectedDate();
       }
+      if (action === "date-focus") {
+        this.datePickerActive = true;
+      }
+      if (action === "date-blur") {
+        this.datePickerActive = false;
+        if (this.pendingRender) this.render();
+      }
       if (action === "refresh-prices") await this.refreshPricesForSelectedDate();
       if (action === "date-prev") await this.changePlanDate(shiftPlanDate(this.selectedPlanDate, -1));
       if (action === "date-next") await this.changePlanDate(shiftPlanDate(this.selectedPlanDate, 1));
@@ -396,6 +406,11 @@ class AltenEmsCard extends HTMLElement {
 
   render() {
     if (!this.shadowRoot || !this.renderer) return;
+    if (this.datePickerActive) {
+      this.pendingRender = true;
+      return;
+    }
+    this.pendingRender = false;
     const virtualBattery = this.batteryManager.getVirtualBattery();
     const planResult = this.getPlanResult();
     const alerts = this.buildAlerts(virtualBattery);
@@ -447,6 +462,7 @@ class AltenEmsCard extends HTMLElement {
     const nextDate = normalizePlanDate(value);
     if (!nextDate) return;
     if (nextDate === this.selectedPlanDate) return;
+    this.datePickerActive = false;
     this.selectedPlanDate = nextDate;
     storePlanDate(this.selectedPlanDate);
     this.priceService.setDate(this.selectedPlanDate);
@@ -598,6 +614,8 @@ function normalizePlanDate(value) {
 }
 
 function readStoredPlanDate() {
+  const globalDate = normalizePlanDate(globalCardState().planDate);
+  if (globalDate) return globalDate;
   try {
     return normalizePlanDate(localStorage.getItem("alten-ems-plan-date"));
   } catch {
@@ -606,11 +624,17 @@ function readStoredPlanDate() {
 }
 
 function storePlanDate(value) {
+  globalCardState().planDate = normalizePlanDate(value) || defaultPlanDate();
   try {
-    localStorage.setItem("alten-ems-plan-date", normalizePlanDate(value) || defaultPlanDate());
+    localStorage.setItem("alten-ems-plan-date", globalCardState().planDate);
   } catch {
     // localStorage can be unavailable in restricted embeds.
   }
+}
+
+function globalCardState() {
+  window[GLOBAL_STATE_KEY] = window[GLOBAL_STATE_KEY] || {};
+  return window[GLOBAL_STATE_KEY];
 }
 
 if (!customElements.get("alten-ems-card")) {
