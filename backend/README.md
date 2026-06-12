@@ -36,6 +36,7 @@ Core endpoints:
 - `GET /api/batteries`
 - `POST /api/plan/optimize`
 - `POST /api/plan/apply`
+- `POST /api/plan/dispatch-current`
 - `GET /api/plan/current`
 - `GET /api/plan/history`
 - `POST /api/services/alten_ems/apply_plan`
@@ -47,3 +48,17 @@ Core endpoints:
 - `POST /api/mqtt/discovery/{battery_id}`
 - `POST /api/mqtt/telemetry`
 - `POST /api/mqtt/command/{battery_id}`
+
+## Home Assistant grid charging switch
+
+Set `ALTEN_EMS_GRID_CHARGING_SWITCH` to the inverter switch that allows grid
+charging. The add-on default is:
+
+```text
+switch.inverter_battery_grid_charging
+```
+
+Confirmed plans are dispatched against the current hour. A `charge` slot turns
+the switch on; `idle` and `discharge` slots turn it off. The backend repeats
+this check every minute, and the manual charge/discharge/stop services use the
+same switch.

@@ -39,6 +39,19 @@ files into `/config/www`.
 - `modbus_unit`: Modbus unit/slave id.
 - `ha_url`: Home Assistant Core API URL. In add-on mode this defaults to
   `http://supervisor/core/api` and uses the Supervisor token automatically.
+- `grid_charging_switch`: Home Assistant switch that enables inverter grid
+  charging. The default is `switch.inverter_battery_grid_charging`.
+
+## Grid Charging Dispatch
+
+When a plan is confirmed, the backend checks the current hourly slot. If that
+slot is `charge`, it calls `switch.turn_on` for `grid_charging_switch`; if the
+slot is `idle` or `discharge`, it calls `switch.turn_off`.
+
+The add-on also checks the saved current plan every minute, so the switch
+changes automatically when the next hourly slot starts. Manual controls use the
+same switch: `manual_charge` turns it on, while `manual_discharge` and
+`emergency_stop` turn it off.
 
 ## Real Battery Sensor Mapping
 

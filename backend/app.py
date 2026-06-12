@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal
@@ -10,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from battery_store import BatteryStore
 from config import load_settings
+from dispatch import find_current_slot, should_enable_grid_charging, slot_key, slot_power_kw
 from modbus.client import ModbusBatteryClient, PymodbusTcpTransport
 from mqtt.client import EmsMqttClient
 from optimizer.arbitrage import BatteryEnvelope, PriceSlot, optimize_arbitrage
@@ -62,6 +64,9 @@ price_service = MarketPriceService(
 
 modbus_clients = {}
 battery_store = BatteryStore(settings.data_dir, DEFAULT_BATTERIES)
+dispatch_task: asyncio.Task | None = None
+last_plan_dispatch_key: str | None = None
+last_grid_charging_state: bool | None = None
 
 
 class BatteryModel(BaseModel):
@@ -128,6 +133,23 @@ def health():
         "service": "alten-ems",
         "time": datetime.now(timezone.utc).isoformat(),
     }
+
+
+@app.on_event("startup")
+async def start_plan_dispatcher():
+    global dispatch_task
+    if dispatch_task is None:
+        dispatch_task = asyncio.create_task(plan_dispatch_loop())
+
+
+@app.on_event("shutdown")
+async def stop_plan_dispatcher():
+    if dispatch_task:
+        dispatch_task.cancel()
+        try:
+            await dispatch_task
+        except asyncio.CancelledError:
+            pass
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
@@ -226,7 +248,7 @@ def optimize_plan(request: OptimizeRequest):
 
 
 @app.post("/api/plan/apply")
-def apply_plan(request: PlanApplyRequest | dict[str, Any]):
+async def apply_plan(request: PlanApplyRequest | dict[str, Any]):
     if isinstance(request, dict):
         plan = request
         status = "confirmed"
@@ -235,12 +257,14 @@ def apply_plan(request: PlanApplyRequest | dict[str, Any]):
         status = request.status
 
     saved = plan_store.save(plan, status)
+    dispatch = await dispatch_plan_now(saved, force=True)
     return {
         "ok": True,
         "message": "Plan received",
         "status": status,
         "current_plan": saved,
         "plan": plan,
+        "dispatch": dispatch,
     }
 
 
@@ -254,18 +278,24 @@ def get_plan_history(limit: int = 20):
     return plan_store.list_history(limit=limit)
 
 
+@app.post("/api/plan/dispatch-current")
+async def dispatch_current_plan():
+    return await dispatch_current_saved_plan(force=True)
+
+
 @app.post("/api/services/alten_ems/apply_plan")
-def ha_apply_plan(request: PlanApplyRequest):
+async def ha_apply_plan(request: PlanApplyRequest):
     saved = plan_store.save(request.plan, "applied")
-    return {"ok": True, "service": "alten_ems.apply_plan", "current_plan": saved}
+    dispatch = await dispatch_plan_now(saved, force=True)
+    return {"ok": True, "service": "alten_ems.apply_plan", "current_plan": saved, "dispatch": dispatch}
 
 
 @app.post("/api/services/alten_ems/emergency_stop")
 async def ha_emergency_stop(command: ManualCommand | None = None):
     battery_id = command.battery_id if command else "virtual"
-    await send_battery_command(battery_id, "idle", 0)
+    result = await send_battery_command(battery_id, "idle", 0)
     saved = plan_store.set_status("failed")
-    return {"ok": True, "service": "alten_ems.emergency_stop", "current_plan": saved}
+    return {"ok": True, "service": "alten_ems.emergency_stop", "current_plan": saved, **result}
 
 
 @app.post("/api/services/alten_ems/manual_charge")
@@ -439,19 +469,26 @@ def manual_schedule(command: ManualCommand) -> dict[str, Any] | None:
     }
 
 
-async def send_battery_command(battery_id: str, mode: Literal["idle", "charge", "discharge"], power_kw: float):
+async def send_battery_command(
+    battery_id: str,
+    mode: Literal["idle", "charge", "discharge"],
+    power_kw: float,
+    control_grid_switch: bool = True,
+):
     if battery_id == "virtual":
         targets = [battery for battery in battery_store.list() if battery.get("enabled", True)]
         results = [
-            await send_battery_command(str(battery["id"]), mode, power_kw)
+            await send_battery_command(str(battery["id"]), mode, power_kw, control_grid_switch=False)
             for battery in targets
             if battery.get("id")
         ]
+        grid_result = await set_grid_charging_for_mode(mode, power_kw, force=True) if control_grid_switch else None
         return {
             "battery_id": battery_id,
             "mode": mode,
             "power_kw": power_kw,
             "targets": results,
+            "home_assistant": grid_result,
         }
 
     modbus_result = None
@@ -461,12 +498,97 @@ async def send_battery_command(battery_id: str, mode: Literal["idle", "charge", 
 
     await mqtt_client.connect()
     topic, payload = await mqtt_client.publish_command(battery_id, mode, power_kw)
+    grid_result = await set_grid_charging_for_mode(mode, power_kw, force=True) if control_grid_switch else None
     return {
         "battery_id": battery_id,
         "mode": mode,
         "power_kw": power_kw,
         "modbus": modbus_result,
         "mqtt": {"topic": topic, "payload": payload},
+        "home_assistant": grid_result,
+    }
+
+
+async def plan_dispatch_loop() -> None:
+    while True:
+        try:
+            await dispatch_current_saved_plan()
+        except Exception:
+            pass
+        await asyncio.sleep(60)
+
+
+async def dispatch_current_saved_plan(force: bool = False) -> dict[str, Any]:
+    current = plan_store.load_current()
+    return await dispatch_plan_now(current, force=force)
+
+
+async def dispatch_plan_now(current_plan: dict[str, Any], force: bool = False) -> dict[str, Any]:
+    global last_plan_dispatch_key
+    plan = current_plan.get("plan") if isinstance(current_plan, dict) else current_plan
+    slot = find_current_slot(plan)
+    if not slot:
+        return {
+            "ok": True,
+            "skipped": True,
+            "reason": "No plan slot matches the current hour",
+        }
+
+    enabled = should_enable_grid_charging(slot)
+    key = slot_key(slot, enabled)
+    if not force and key == last_plan_dispatch_key:
+        return {
+            "ok": True,
+            "skipped": True,
+            "reason": "Grid charging switch already dispatched for this slot",
+            "grid_charging": enabled,
+            "slot": summarize_dispatch_slot(slot),
+        }
+
+    switch_result = await set_grid_charging_switch(enabled, force=force)
+    if switch_result.get("ok") or switch_result.get("skipped"):
+        last_plan_dispatch_key = key
+    return {
+        "ok": bool(switch_result.get("ok") or switch_result.get("skipped")),
+        "grid_charging": enabled,
+        "slot": summarize_dispatch_slot(slot),
+        "home_assistant": switch_result,
+    }
+
+
+async def set_grid_charging_for_mode(
+    mode: Literal["idle", "charge", "discharge"],
+    power_kw: float,
+    force: bool = False,
+) -> dict[str, Any]:
+    enabled = mode == "charge" and power_kw > 0
+    return await set_grid_charging_switch(enabled, force=force)
+
+
+async def set_grid_charging_switch(enabled: bool, force: bool = False) -> dict[str, Any]:
+    global last_grid_charging_state
+    entity_id = settings.grid_charging_switch
+    if not force and last_grid_charging_state is enabled:
+        return {
+            "ok": True,
+            "skipped": True,
+            "reason": "Grid charging switch is already in requested state",
+            "entity_id": entity_id,
+            "state": "on" if enabled else "off",
+        }
+    result = await ha_sensor_client.set_switch(entity_id, enabled)
+    if result.get("ok"):
+        last_grid_charging_state = enabled
+    return result
+
+
+def summarize_dispatch_slot(slot: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "time": slot.get("time"),
+        "hour": slot.get("hour"),
+        "mode": slot.get("mode"),
+        "power_kw": slot_power_kw(slot),
+        "price": slot.get("price"),
     }
 
 

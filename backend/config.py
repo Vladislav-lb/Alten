@@ -20,6 +20,7 @@ class Settings:
     modbus_unit: int
     ha_url: str | None
     ha_token: str | None
+    grid_charging_switch: str | None
     oree_api_key: str | None
     oree_prices_url: str
     oree_zone_eic: str
@@ -42,6 +43,7 @@ def load_settings() -> Settings:
         modbus_unit=int(os.getenv("ALTEN_EMS_MODBUS_UNIT", "1")),
         ha_url=empty_to_none(os.getenv("ALTEN_EMS_HA_URL", "http://supervisor/core/api")),
         ha_token=empty_to_none(os.getenv("ALTEN_EMS_HA_TOKEN") or os.getenv("SUPERVISOR_TOKEN")),
+        grid_charging_switch=empty_to_none(os.getenv("ALTEN_EMS_GRID_CHARGING_SWITCH", "switch.inverter_battery_grid_charging")),
         oree_api_key=empty_to_none(os.getenv("ALTEN_EMS_OREE_API_KEY")),
         oree_prices_url=os.getenv("ALTEN_EMS_OREE_PRICES_URL", "https://www.oree.com.ua/index.php/api/damprices"),
         oree_zone_eic=os.getenv("ALTEN_EMS_OREE_ZONE_EIC", "10Y1001C--000182"),
