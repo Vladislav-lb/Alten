@@ -359,6 +359,15 @@ class AltenEmsCard extends HTMLElement {
         this.addAlert(this.manualCommandMessage(mode, result), mode === "idle" ? "warning" : "success");
         await this.refreshBackendState();
       }
+      if (action === "grid-charging") {
+        const enabled = mode === "on";
+        const result = await this.backendService.gridCharging({
+          batteryId: this.manualTarget || this.selectedBatteryId || "virtual",
+          enabled,
+        });
+        this.addAlert(this.gridChargingMessage(enabled, result), enabled ? "success" : "warning");
+        await this.refreshBackendState();
+      }
       if (action === "emergency-stop") {
         try {
           await this.backendService.manualControl({
@@ -579,6 +588,11 @@ class AltenEmsCard extends HTMLElement {
     if (mode === "charge") return `Manual charge command sent (${targetCount} target).`;
     if (mode === "discharge") return `Manual discharge command sent (${targetCount} target).`;
     return `Manual stop command sent (${targetCount} target).`;
+  }
+
+  gridChargingMessage(enabled, result = {}) {
+    if (result.blocked) return `Grid charging blocked by EMS safety: ${firstSafetyReason(result)}`;
+    return enabled ? "Grid charging switch enabled." : "Grid charging switch disabled.";
   }
 
   normalizePowerInput(value) {

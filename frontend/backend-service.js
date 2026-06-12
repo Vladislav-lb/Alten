@@ -81,6 +81,13 @@ export class BackendService extends EventTarget {
     });
   }
 
+  async gridCharging({ batteryId = "virtual", enabled = true } = {}) {
+    return this.postJson("/api/services/alten_ems/grid_charging", {
+      battery_id: batteryId || "virtual",
+      enabled: Boolean(enabled),
+    });
+  }
+
   async getJson(path) {
     const response = await fetch(this.resolveUrl(path), {
       headers: { Accept: "application/json" },

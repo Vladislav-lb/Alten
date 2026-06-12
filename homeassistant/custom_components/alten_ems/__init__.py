@@ -16,6 +16,7 @@ SERVICE_APPLY_PLAN = "apply_plan"
 SERVICE_EMERGENCY_STOP = "emergency_stop"
 SERVICE_MANUAL_CHARGE = "manual_charge"
 SERVICE_MANUAL_DISCHARGE = "manual_discharge"
+SERVICE_GRID_CHARGING = "grid_charging"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -75,6 +76,15 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             },
         )
 
+    async def grid_charging(call: ServiceCall) -> None:
+        await post(
+            "/api/services/alten_ems/grid_charging",
+            {
+                "battery_id": call.data.get("battery_id", "virtual"),
+                "enabled": call.data["enabled"],
+            },
+        )
+
     hass.services.async_register(
         DOMAIN,
         SERVICE_APPLY_PLAN,
@@ -103,6 +113,15 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         schema=vol.Schema({
             vol.Required("battery_id", default="batt_1"): str,
             vol.Required("power_kw", default=50): vol.Coerce(float),
+        }),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_GRID_CHARGING,
+        grid_charging,
+        schema=vol.Schema({
+            vol.Optional("battery_id", default="virtual"): str,
+            vol.Required("enabled", default=True): bool,
         }),
     )
 

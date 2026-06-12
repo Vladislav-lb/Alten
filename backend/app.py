@@ -110,6 +110,11 @@ class ManualCommand(BaseModel):
     use_range: bool = False
 
 
+class GridChargingCommand(BaseModel):
+    battery_id: str = "virtual"
+    enabled: bool = True
+
+
 class MqttPublishRequest(BaseModel):
     battery_id: str = "virtual"
     payload: dict[str, Any]
@@ -360,6 +365,13 @@ async def ha_manual_discharge(command: ManualCommand):
     return {"ok": True, "service": "alten_ems.manual_discharge", "schedule": manual_schedule(command), **result}
 
 
+@app.post("/api/services/alten_ems/grid_charging")
+async def ha_grid_charging(command: GridChargingCommand):
+    source = "manual_grid_charge_on" if command.enabled else "manual_grid_charge_off"
+    result = await set_grid_charging_direct(command.battery_id, command.enabled, source=source)
+    return {"ok": bool(result.get("ok") or result.get("skipped")), "service": "alten_ems.grid_charging", **result}
+
+
 @app.get("/api/modbus/{battery_id}/telemetry")
 async def read_modbus_telemetry(battery_id: str):
     client = modbus_clients.get(battery_id)
@@ -604,6 +616,48 @@ async def set_grid_charging_for_mode(
 ) -> dict[str, Any]:
     enabled = mode == "charge" and power_kw > 0
     return await set_grid_charging_switch(enabled, force=force)
+
+
+async def set_grid_charging_direct(battery_id: str, enabled: bool, source: str) -> dict[str, Any]:
+    if active_control_channel() != "home_assistant":
+        return record_command_result({
+            "ok": False,
+            "blocked": True,
+            "channel": active_control_channel(),
+            "source": source,
+            "battery_id": battery_id,
+            "mode": "charge" if enabled else "idle",
+            "power_kw": 0,
+            "effective_power_kw": 0,
+            "error": "Direct grid charging switch control requires home_assistant control_channel",
+        })
+
+    mode: Literal["idle", "charge", "discharge"] = "charge" if enabled else "idle"
+    safety = await evaluate_command_safety(battery_id, mode, 0)
+    if not safety["allowed"]:
+        return record_command_result({
+            "ok": False,
+            "blocked": True,
+            "channel": "home_assistant",
+            "source": source,
+            "battery_id": battery_id,
+            "mode": mode,
+            "power_kw": 0,
+            "effective_power_kw": 0,
+            "safety": safety,
+        })
+
+    result = await set_grid_charging_switch(enabled, force=True)
+    return record_command_result({
+        **result,
+        "channel": "home_assistant",
+        "source": source,
+        "battery_id": battery_id,
+        "mode": mode,
+        "power_kw": 0,
+        "effective_power_kw": 0,
+        "safety": safety,
+    })
 
 
 async def dispatch_command(

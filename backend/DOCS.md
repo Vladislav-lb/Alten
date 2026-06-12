@@ -72,6 +72,9 @@ MQTT only when a bridge or automation is subscribed to the EMS command topics.
 - `GET /api/settings` returns active EMS runtime settings.
 - `POST /api/settings` updates `control_channel`, `grid_charging_switch`, and
   `safety_checks_enabled` without requiring SSH.
+- `POST /api/services/alten_ems/grid_charging` directly turns the configured
+  Home Assistant grid charging switch on or off with the same safety and journal
+  pipeline used by manual and plan commands.
 
 The command journal is stored as JSONL in `/data/command_log.jsonl`. The latest
 dispatch status is stored in `/data/dispatch_status.json`.

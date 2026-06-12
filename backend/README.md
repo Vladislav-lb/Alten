@@ -47,6 +47,7 @@ Core endpoints:
 - `POST /api/services/alten_ems/emergency_stop`
 - `POST /api/services/alten_ems/manual_charge`
 - `POST /api/services/alten_ems/manual_discharge`
+- `POST /api/services/alten_ems/grid_charging`
 - `GET /api/modbus/{battery_id}/telemetry`
 - `POST /api/modbus/{battery_id}/command`
 - `POST /api/mqtt/discovery/{battery_id}`

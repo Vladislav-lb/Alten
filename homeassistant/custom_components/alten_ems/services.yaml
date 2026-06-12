@@ -59,3 +59,20 @@ manual_discharge:
           min: 0
           max: 10000
           step: 1
+
+grid_charging:
+  name: Grid charging
+  description: Turn inverter grid charging switch on or off through Alten EMS.
+  fields:
+    battery_id:
+      name: Battery ID
+      required: false
+      default: virtual
+      selector:
+        text:
+    enabled:
+      name: Enabled
+      required: true
+      default: true
+      selector:
+        boolean:

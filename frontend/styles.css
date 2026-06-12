@@ -1139,6 +1139,82 @@ h2 {
   font-weight: 700;
 }
 
+.manual-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.control-card {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  border: 1px solid var(--ems-border-soft, #d9dee3);
+  border-radius: 8px;
+  background: var(--ems-panel, #ffffff);
+  padding: 12px;
+}
+
+.control-card header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ems-text, #1e2933);
+}
+
+.control-card header span {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(50, 189, 242, 0.14);
+}
+
+.control-card-body,
+.card-field {
+  display: grid;
+  gap: 8px;
+}
+
+.card-field span,
+.manual-time-grid small {
+  color: var(--ems-muted, #6f7b86);
+  font-size: 11px;
+}
+
+.with-unit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.with-unit em {
+  color: var(--ems-muted, #6f7b86);
+  font-style: normal;
+}
+
+.manual-button-pair,
+.manual-time-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.control-card.charge {
+  border-color: rgba(50, 189, 242, 0.45);
+}
+
+.control-card.discharge {
+  border-color: rgba(85, 199, 131, 0.45);
+}
+
+.control-card.grid-switch {
+  border-color: rgba(243, 185, 78, 0.5);
+}
+
 .range-check {
   grid-column: 1 / -1;
   grid-template-columns: 18px auto !important;

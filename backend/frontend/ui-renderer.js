@@ -904,7 +904,7 @@ function inputMatrixRow(label, entries, field, renderValue, rowClass) {
   `;
 }
 
-function renderManualControl(selectedBatteryId, batteries, manualControl = {}) {
+function renderManualControlLegacy(selectedBatteryId, batteries, manualControl = {}) {
   const selected = batteries.find((battery) => battery.id === selectedBatteryId);
   const target = manualControl.target || selected?.id || "virtual";
   return `
@@ -945,6 +945,104 @@ function renderManualControl(selectedBatteryId, batteries, manualControl = {}) {
         <span>Використати діапазон</span>
       </label>
     </div>
+  `;
+}
+
+function renderManualControl(selectedBatteryId, batteries, manualControl = {}) {
+  const selected = batteries.find((battery) => battery.id === selectedBatteryId);
+  const target = manualControl.target || selected?.id || "virtual";
+  const batteryOptions = `
+    <option value="virtual" ${target === "virtual" ? "selected" : ""}>Virtual BESS</option>
+    ${batteries.map((battery) => `<option value="${battery.id}" ${target === battery.id ? "selected" : ""}>${escapeHtml(battery.name)}</option>`).join("")}
+  `;
+  const cards = [
+    {
+      className: "charge",
+      title: "Заряд",
+      icon: "🔋",
+      body: `
+        <label class="card-field">
+          <span>Потужність</span>
+          <div class="with-unit">
+            <input data-field="manual-charge-power" type="number" min="0" step="1" value="${formatPlainNumber(manualControl.chargePowerKw ?? 50)}">
+            <em>кВт</em>
+          </div>
+        </label>
+        <button data-action="manual-control" data-mode="charge">ЗАРЯД</button>
+      `,
+    },
+    {
+      className: "discharge",
+      title: "Розряд",
+      icon: "⚡",
+      body: `
+        <label class="card-field">
+          <span>Потужність</span>
+          <div class="with-unit">
+            <input data-field="manual-discharge-power" type="number" min="0" step="1" value="${formatPlainNumber(manualControl.dischargePowerKw ?? 50)}">
+            <em>кВт</em>
+          </div>
+        </label>
+        <button data-action="manual-control" data-mode="discharge">РОЗРЯД</button>
+      `,
+    },
+    {
+      className: "target",
+      title: "Ціль",
+      icon: "▣",
+      body: `
+        <label class="card-field">
+          <span>Батарея / група</span>
+          <select data-field="manual-target">${batteryOptions}</select>
+        </label>
+        <button data-action="manual-control" data-mode="idle">■ СТОП</button>
+      `,
+    },
+    {
+      className: "grid-switch",
+      title: "Зарядка від мережі",
+      icon: "⏻",
+      body: `
+        <div class="manual-button-pair">
+          <button class="save-button" data-action="grid-charging" data-mode="on">Увімкнути</button>
+          <button class="delete-button" data-action="grid-charging" data-mode="off">Вимкнути</button>
+        </div>
+      `,
+    },
+    {
+      className: "schedule",
+      title: "Діапазон",
+      icon: "◷",
+      body: `
+        <div class="manual-time-grid">
+          <label class="card-field">
+            <span>Початок</span>
+            <input data-field="manual-start" type="time" value="${escapeHtml(manualControl.startTime || "11:00")}">
+          </label>
+          <label class="card-field">
+            <span>Завершення</span>
+            <input data-field="manual-end" type="time" value="${escapeHtml(manualControl.endTime || "12:00")}">
+          </label>
+        </div>
+        <label class="range-check">
+          <input data-field="manual-use-range" type="checkbox" ${manualControl.useRange ? "checked" : ""}>
+          <span>Використати діапазон</span>
+        </label>
+      `,
+    },
+  ];
+  return `<div class="manual-card-grid">${cards.map(renderControlCard).join("")}</div>`;
+}
+
+function renderControlCard({ className = "", title, icon, body }) {
+  return `
+    <article class="control-card ${className}">
+      <header>
+        <span>${escapeHtml(icon)}</span>
+        <strong>${escapeHtml(title)}</strong>
+      </header>
+      <div class="control-card-body">${body}</div>
+    </article>
   `;
 }
 
