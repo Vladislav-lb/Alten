@@ -870,6 +870,31 @@ h2 {
   font-size: 11px;
 }
 
+.custom-sensor-card {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  border: 1px solid var(--ems-border-soft, #d9dee3);
+  border-radius: 8px;
+  background: var(--ems-panel-soft, #f8fafc);
+  padding: 12px;
+}
+
+.custom-sensor-list {
+  display: grid;
+  gap: 8px;
+}
+
+.custom-sensor-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.45fr) minmax(180px, 1fr) 34px;
+  gap: 8px;
+}
+
+.custom-sensor-row input {
+  min-width: 0;
+}
+
 .tree-children.collapsed {
   display: none;
 }
@@ -2370,6 +2395,10 @@ h2,
   .battery-config-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
+  }
+
+  .custom-sensor-row {
+    grid-template-columns: 1fr;
   }
 
   .battery-config-grid input {

@@ -53,6 +53,7 @@ class AltenEmsCard extends HTMLElement {
     this.dispatchStatus = null;
     this.commandHistory = [];
     this.backendSettings = {};
+    this.haEntityOptions = [];
     this.telemetryTimer = null;
     this.eventsBound = false;
     this.batteryManager = new BatteryManager({ batteries: DEFAULT_CONFIG.batteries });
@@ -118,6 +119,7 @@ class AltenEmsCard extends HTMLElement {
     this._hass = hass;
     this.haService.setHass(hass);
     this.priceService.setHass(hass);
+    this.haEntityOptions = buildHaEntityOptions(hass);
 
     const batteries = this.haService.readBatteriesFromEntities(this.config.batteries || []);
     batteries.forEach((battery) => this.batteryManager.upsertBattery(battery));
@@ -489,6 +491,7 @@ class AltenEmsCard extends HTMLElement {
       dispatchStatus: this.dispatchStatus,
       commandHistory: this.commandHistory,
       backendSettings: this.backendSettings,
+      haEntityOptions: this.haEntityOptions,
     });
   }
 
@@ -693,6 +696,19 @@ function firstSafetyReason(result = {}) {
   const checks = result.safety?.checks || [];
   const blocker = checks.find((check) => check.ok === false) || checks[0];
   return blocker?.reason || "blocked";
+}
+
+function buildHaEntityOptions(hass) {
+  const states = hass?.states || {};
+  return Object.entries(states)
+    .filter(([entityId]) => /^(sensor|binary_sensor|switch|number|select|input_number)\./.test(entityId))
+    .map(([entityId, entity]) => ({
+      entityId,
+      name: entity.attributes?.friendly_name || entityId,
+      domain: entityId.split(".", 1)[0],
+      unit: entity.attributes?.unit_of_measurement || "",
+    }))
+    .sort((left, right) => left.entityId.localeCompare(right.entityId));
 }
 
 function globalCardState() {

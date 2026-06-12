@@ -181,14 +181,19 @@ export function normalizeBatteryPayload(input = {}) {
     efficiency_percent: Number(input.efficiency_percent ?? input.efficiency ?? ((input.roundtripEfficiency ?? 0.92) * 100)),
     protocol: input.protocol || "home_assistant",
     connection: input.connection || { type: input.protocol || "home_assistant" },
-    sensors: {
-      soc: input.sensors?.soc || input.soc_sensor || "",
-      power: input.sensors?.power || input.power_sensor || "",
-      voltage: input.sensors?.voltage || input.voltage_sensor || "",
-      current: input.sensors?.current || input.current_sensor || "",
-      temperature: input.sensors?.temperature || input.temperature_sensor || "",
-      status: input.sensors?.status || input.status_sensor || "",
-    },
+    sensors: normalizeSensors(input),
+  };
+}
+
+function normalizeSensors(input = {}) {
+  return {
+    ...(input.sensors || {}),
+    soc: input.sensors?.soc || input.soc_sensor || "",
+    power: input.sensors?.power || input.power_sensor || "",
+    voltage: input.sensors?.voltage || input.voltage_sensor || "",
+    current: input.sensors?.current || input.current_sensor || "",
+    temperature: input.sensors?.temperature || input.temperature_sensor || "",
+    status: input.sensors?.status || input.status_sensor || "",
   };
 }
 

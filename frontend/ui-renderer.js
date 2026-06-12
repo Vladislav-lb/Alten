@@ -54,6 +54,7 @@ export class UIRenderer extends EventTarget {
       dispatchStatus = null,
       commandHistory = [],
       backendSettings = {},
+      haEntityOptions = [],
     } = state;
     const activeGroup = selectedGroup || groups[0]?.group || "ALTEN";
     const unitLabel = powerUnit === "mw" ? "MW" : "kW";
@@ -119,7 +120,7 @@ export class UIRenderer extends EventTarget {
           <main class="main-stage">
             ${alerts.length ? renderAlerts(alerts) : ""}
             ${activeView === "analytics" ? renderChartsView(planResult.plan, planResult.summary, virtualBattery) : ""}
-            ${activeView === "monitoring" ? renderMonitoringView(batteries, virtualBattery, selectedBatteryId) : ""}
+            ${activeView === "monitoring" ? renderMonitoringView(batteries, virtualBattery, selectedBatteryId, haEntityOptions) : ""}
 
             <section class="plan-card ${activeView !== "control" ? "view-hidden" : ""}">
               <div class="day-tab">${formatPlanDate(selectedPlanDate)}</div>
@@ -202,6 +203,14 @@ export class UIRenderer extends EventTarget {
       this.downloadPlanCsv();
       return;
     }
+    if (action === "add-custom-sensor") {
+      this.addCustomSensorRow();
+      return;
+    }
+    if (action === "remove-custom-sensor") {
+      button.closest("[data-custom-sensor-row]")?.remove();
+      return;
+    }
     this.dispatchEvent(new CustomEvent("action", {
       detail: {
         action,
@@ -258,6 +267,20 @@ export class UIRenderer extends EventTarget {
     const form = this.root.querySelector("[data-battery-config-form]");
     if (!form) return {};
     const read = (key) => form.querySelector(`[data-form-key="${key}"]`)?.value?.trim() || "";
+    const sensors = {
+      soc: read("sensor_soc"),
+      power: read("sensor_power"),
+      voltage: read("sensor_voltage"),
+      current: read("sensor_current"),
+      temperature: read("sensor_temperature"),
+      status: read("sensor_status"),
+    };
+    form.querySelectorAll("[data-custom-sensor-row]").forEach((row) => {
+      const key = row.querySelector('[data-form-key="custom_sensor_key"]')?.value?.trim();
+      const entityId = row.querySelector('[data-form-key="custom_sensor_entity"]')?.value?.trim();
+      if (!key || !entityId) return;
+      sensors[sanitizeSensorKey(key)] = entityId;
+    });
     return {
       id: read("id"),
       name: read("name"),
@@ -272,14 +295,7 @@ export class UIRenderer extends EventTarget {
       efficiency_percent: read("efficiency_percent"),
       protocol: "home_assistant",
       connection: { type: "home_assistant" },
-      sensors: {
-        soc: read("sensor_soc"),
-        power: read("sensor_power"),
-        voltage: read("sensor_voltage"),
-        current: read("sensor_current"),
-        temperature: read("sensor_temperature"),
-        status: read("sensor_status"),
-      },
+      sensors,
     };
   }
 
@@ -292,6 +308,12 @@ export class UIRenderer extends EventTarget {
       grid_charging_switch: read("grid_charging_switch")?.value?.trim() || "",
       safety_checks_enabled: Boolean(read("safety_checks_enabled")?.checked),
     };
+  }
+
+  addCustomSensorRow(key = "", entityId = "") {
+    const list = this.root.querySelector("[data-custom-sensor-list]");
+    if (!list) return;
+    list.insertAdjacentHTML("beforeend", renderCustomSensorRow({ key, entityId }));
   }
 
   captureMatrixScroll() {
@@ -450,7 +472,7 @@ function renderChartsView(plan, summary, virtualBattery) {
   `;
 }
 
-function renderMonitoringView(batteries, virtualBattery, selectedBatteryId) {
+function renderMonitoringView(batteries, virtualBattery, selectedBatteryId, haEntityOptions = []) {
   const enabled = batteries.filter((battery) => battery.enabled);
   const online = batteries.filter((battery) => battery.telemetry?.online !== false && battery.telemetry?.lastSeen).length;
   const totalPower = batteries.reduce((sum, battery) => sum + (Number(battery.telemetry?.powerKw) || 0), 0);
@@ -472,7 +494,7 @@ function renderMonitoringView(batteries, virtualBattery, selectedBatteryId) {
       <div class="battery-monitor-grid">
         ${batteries.map(renderBatteryMonitorCard).join("") || emptyState("Немає підключених батарей")}
       </div>
-      ${renderBatteryConfigForm(batteries, selectedBatteryId)}
+      ${renderBatteryConfigForm(batteries, selectedBatteryId, haEntityOptions)}
       <div class="sensor-table-card">
         <div class="chart-title">
           <strong>Сенсори батарей</strong>
@@ -516,7 +538,7 @@ function renderBatteryMonitorCard(battery) {
   `;
 }
 
-function renderBatteryConfigForm(batteries, selectedBatteryId) {
+function renderBatteryConfigForm(batteries, selectedBatteryId, haEntityOptions = []) {
   const candidate = selectedBatteryId === "__new__"
     ? {}
     : batteries.find((battery) => battery.id === selectedBatteryId)
@@ -524,6 +546,9 @@ function renderBatteryConfigForm(batteries, selectedBatteryId) {
       || batteries[0]
       || {};
   const sensors = candidate.sensors || {};
+  const customSensors = Object.entries(sensors)
+    .filter(([key]) => !STANDARD_SENSOR_KEYS.includes(key))
+    .map(([key, entityId]) => ({ key, entityId }));
   return `
     <div class="battery-config-card" data-battery-config-form>
       <div class="chart-title">
@@ -542,12 +567,23 @@ function renderBatteryConfigForm(batteries, selectedBatteryId) {
         ${formInput("Min SOC %", "min_soc_percent", candidate.minSoc || 35, "number")}
         ${formInput("Max SOC %", "max_soc_percent", candidate.maxSoc || 100, "number")}
         ${formInput("Efficiency %", "efficiency_percent", Math.round((candidate.roundtripEfficiency || 0.99) * 100), "number")}
-        ${formInput("SOC sensor", "sensor_soc", sensors.soc || "sensor.inverter_battery")}
-        ${formInput("Power sensor", "sensor_power", sensors.power || "sensor.inverter_battery_power")}
-        ${formInput("Voltage sensor", "sensor_voltage", sensors.voltage || "sensor.inverter_battery_voltage")}
-        ${formInput("Current sensor", "sensor_current", sensors.current || "sensor.inverter_battery_current")}
-        ${formInput("Temperature sensor", "sensor_temperature", sensors.temperature || "sensor.inverter_battery_temperature")}
-        ${formInput("Status sensor", "sensor_status", sensors.status || "sensor.inverter_device_alarm")}
+        ${sensorEntityInput("SOC sensor", "sensor_soc", sensors.soc || "sensor.inverter_battery")}
+        ${sensorEntityInput("Power sensor", "sensor_power", sensors.power || "sensor.inverter_battery_power")}
+        ${sensorEntityInput("Voltage sensor", "sensor_voltage", sensors.voltage || "sensor.inverter_battery_voltage")}
+        ${sensorEntityInput("Current sensor", "sensor_current", sensors.current || "sensor.inverter_battery_current")}
+        ${sensorEntityInput("Temperature sensor", "sensor_temperature", sensors.temperature || "sensor.inverter_battery_temperature")}
+        ${sensorEntityInput("Status sensor", "sensor_status", sensors.status || "sensor.inverter_device_alarm")}
+      </div>
+      ${renderHaEntityDatalist(haEntityOptions)}
+      <div class="custom-sensor-card">
+        <div class="chart-title">
+          <strong>Кастомні сенсори</strong>
+          <span>Додаткові entity будуть збережені в telemetry батареї</span>
+        </div>
+        <div class="custom-sensor-list" data-custom-sensor-list>
+          ${customSensors.map(renderCustomSensorRow).join("") || renderCustomSensorRow({ key: "", entityId: "" })}
+        </div>
+        <button data-action="add-custom-sensor">+ Додати кастомний сенсор</button>
       </div>
       <div class="command-row">
         <button class="save-button" data-action="save-battery-config">Зберегти батарею</button>
@@ -562,6 +598,35 @@ function formInput(label, key, value = "", type = "text") {
       <span>${escapeHtml(label)}</span>
       <input data-form-key="${key}" type="${type}" value="${escapeHtml(value)}">
     </label>
+  `;
+}
+
+const STANDARD_SENSOR_KEYS = ["soc", "power", "voltage", "current", "temperature", "status"];
+
+function sensorEntityInput(label, key, value = "") {
+  return `
+    <label>
+      <span>${escapeHtml(label)}</span>
+      <input data-form-key="${key}" list="ha-entity-options" value="${escapeHtml(value)}" placeholder="sensor.example">
+    </label>
+  `;
+}
+
+function renderHaEntityDatalist(options = []) {
+  return `
+    <datalist id="ha-entity-options">
+      ${options.map((option) => `<option value="${escapeHtml(option.entityId)}">${escapeHtml(option.name)}${option.unit ? ` · ${escapeHtml(option.unit)}` : ""}</option>`).join("")}
+    </datalist>
+  `;
+}
+
+function renderCustomSensorRow({ key = "", entityId = "" } = {}) {
+  return `
+    <div class="custom-sensor-row" data-custom-sensor-row>
+      <input data-form-key="custom_sensor_key" value="${escapeHtml(key)}" placeholder="telemetry_key">
+      <input data-form-key="custom_sensor_entity" list="ha-entity-options" value="${escapeHtml(entityId)}" placeholder="sensor.custom_entity">
+      <button class="delete-button" data-action="remove-custom-sensor" title="Видалити">×</button>
+    </div>
   `;
 }
 
@@ -1247,6 +1312,14 @@ function formatPowerValue(valueKw, unit = "kw") {
 function formatPlainNumber(value) {
   const number = Number(value) || 0;
   return Math.round(number * 1000) / 1000;
+}
+
+function sanitizeSensorKey(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "");
 }
 
 function escapeHtml(value) {
