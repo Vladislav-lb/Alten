@@ -58,7 +58,13 @@ charging. The add-on default is:
 switch.inverter_battery_grid_charging
 ```
 
-Confirmed plans are dispatched against the current hour. A `charge` slot turns
-the switch on; `idle` and `discharge` slots turn it off. The backend repeats
-this check every minute, and the manual charge/discharge/stop services use the
-same switch.
+Set `ALTEN_EMS_CONTROL_CHANNEL=home_assistant` to use this switch as the single
+real command path. Confirmed plans are dispatched against the current hour. A
+`charge` slot turns the switch on; `idle` and `discharge` slots turn it off. The
+backend repeats this check every minute, and the manual charge/discharge/stop
+services use the same switch.
+
+Other supported control channels are `modbus` and `mqtt`, but they should not be
+used at the same time as Home Assistant switch control. Use Modbus only with a
+verified inverter register map. Use MQTT only when a real subscriber consumes
+the `alten/ems/command/...` topics and applies them to the inverter.

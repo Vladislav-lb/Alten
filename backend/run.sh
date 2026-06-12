@@ -39,6 +39,7 @@ if [ -f "$OPTIONS_FILE" ]; then
   export ALTEN_EMS_MODBUS_UNIT="$(read_option modbus_unit "1")"
   export ALTEN_EMS_HA_URL="$(read_option ha_url "http://supervisor/core/api")"
   export ALTEN_EMS_GRID_CHARGING_SWITCH="$(read_option grid_charging_switch "switch.inverter_battery_grid_charging")"
+  export ALTEN_EMS_CONTROL_CHANNEL="$(read_option control_channel "home_assistant")"
   export ALTEN_EMS_OREE_API_KEY="$(read_option oree_api_key "")"
   export ALTEN_EMS_OREE_PRICES_URL="$(read_option oree_prices_url "https://www.oree.com.ua/index.php/api/damprices")"
   export ALTEN_EMS_OREE_ZONE_EIC="$(read_option oree_zone_eic "10Y1001C--000182")"

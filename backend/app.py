@@ -120,6 +120,7 @@ def root():
         "status": "Alten EMS Backend running",
         "dashboard": "/dashboard",
         "frontend_resource": "/frontend/alten-ems-card.js",
+        "control_channel": settings.control_channel,
         "mqtt": "configured" if settings.mqtt_host else "dry-run",
         "modbus": "configured" if settings.modbus_host else "memory",
     }
@@ -131,6 +132,7 @@ def health():
         "ok": True,
         "status": "healthy",
         "service": "alten-ems",
+        "control_channel": settings.control_channel,
         "time": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -475,37 +477,12 @@ async def send_battery_command(
     power_kw: float,
     control_grid_switch: bool = True,
 ):
-    if battery_id == "virtual":
-        targets = [battery for battery in battery_store.list() if battery.get("enabled", True)]
-        results = [
-            await send_battery_command(str(battery["id"]), mode, power_kw, control_grid_switch=False)
-            for battery in targets
-            if battery.get("id")
-        ]
-        grid_result = await set_grid_charging_for_mode(mode, power_kw, force=True) if control_grid_switch else None
-        return {
-            "battery_id": battery_id,
-            "mode": mode,
-            "power_kw": power_kw,
-            "targets": results,
-            "home_assistant": grid_result,
-        }
-
-    modbus_result = None
-    if battery_id in modbus_clients:
-        await modbus_clients[battery_id].write_command(mode, power_kw)
-        modbus_result = {"mode": mode, "power_kw": power_kw}
-
-    await mqtt_client.connect()
-    topic, payload = await mqtt_client.publish_command(battery_id, mode, power_kw)
-    grid_result = await set_grid_charging_for_mode(mode, power_kw, force=True) if control_grid_switch else None
+    result = await dispatch_command(battery_id, mode, power_kw, force=True) if control_grid_switch else None
     return {
         "battery_id": battery_id,
         "mode": mode,
         "power_kw": power_kw,
-        "modbus": modbus_result,
-        "mqtt": {"topic": topic, "payload": payload},
-        "home_assistant": grid_result,
+        "control": result,
     }
 
 
@@ -545,14 +522,14 @@ async def dispatch_plan_now(current_plan: dict[str, Any], force: bool = False) -
             "slot": summarize_dispatch_slot(slot),
         }
 
-    switch_result = await set_grid_charging_switch(enabled, force=force)
+    switch_result = await dispatch_command("virtual", "charge" if enabled else "idle", slot_power_kw(slot), force=force)
     if switch_result.get("ok") or switch_result.get("skipped"):
         last_plan_dispatch_key = key
     return {
         "ok": bool(switch_result.get("ok") or switch_result.get("skipped")),
         "grid_charging": enabled,
         "slot": summarize_dispatch_slot(slot),
-        "home_assistant": switch_result,
+        "control": switch_result,
     }
 
 
@@ -563,6 +540,83 @@ async def set_grid_charging_for_mode(
 ) -> dict[str, Any]:
     enabled = mode == "charge" and power_kw > 0
     return await set_grid_charging_switch(enabled, force=force)
+
+
+async def dispatch_command(
+    battery_id: str,
+    mode: Literal["idle", "charge", "discharge"],
+    power_kw: float,
+    force: bool = False,
+) -> dict[str, Any]:
+    channel = settings.control_channel
+    if channel == "home_assistant":
+        return await set_grid_charging_for_mode(mode, power_kw, force=force)
+    if channel == "modbus":
+        return await write_modbus_control(battery_id, mode, power_kw)
+    if channel == "mqtt":
+        return await publish_mqtt_control(battery_id, mode, power_kw)
+    return {
+        "ok": False,
+        "channel": channel,
+        "error": f"Unsupported control channel: {channel}",
+    }
+
+
+async def write_modbus_control(
+    battery_id: str,
+    mode: Literal["idle", "charge", "discharge"],
+    power_kw: float,
+) -> dict[str, Any]:
+    targets = resolve_control_targets(battery_id)
+    if not targets:
+        return {
+            "ok": False,
+            "channel": "modbus",
+            "reason": "No active Modbus target is configured",
+        }
+
+    results = []
+    for target in targets:
+        client = modbus_clients.get(target)
+        if not client:
+            results.append({"battery_id": target, "ok": False, "reason": "No Modbus client"})
+            continue
+        await client.write_command(mode, power_kw)
+        results.append({"battery_id": target, "ok": True, "mode": mode, "power_kw": power_kw})
+
+    return {
+        "ok": any(result.get("ok") for result in results),
+        "channel": "modbus",
+        "targets": results,
+    }
+
+
+async def publish_mqtt_control(
+    battery_id: str,
+    mode: Literal["idle", "charge", "discharge"],
+    power_kw: float,
+) -> dict[str, Any]:
+    await mqtt_client.connect()
+    targets = resolve_control_targets(battery_id) or [battery_id]
+    results = []
+    for target in targets:
+        topic, payload = await mqtt_client.publish_command(target, mode, power_kw)
+        results.append({"battery_id": target, "ok": True, "topic": topic, "payload": payload})
+    return {
+        "ok": True,
+        "channel": "mqtt",
+        "targets": results,
+    }
+
+
+def resolve_control_targets(battery_id: str) -> list[str]:
+    if battery_id != "virtual":
+        return [battery_id]
+    return [
+        str(battery["id"])
+        for battery in battery_store.list()
+        if battery.get("id") and battery.get("enabled", True)
+    ]
 
 
 async def set_grid_charging_switch(enabled: bool, force: bool = False) -> dict[str, Any]:

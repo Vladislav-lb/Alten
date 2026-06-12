@@ -41,17 +41,26 @@ files into `/config/www`.
   `http://supervisor/core/api` and uses the Supervisor token automatically.
 - `grid_charging_switch`: Home Assistant switch that enables inverter grid
   charging. The default is `switch.inverter_battery_grid_charging`.
+- `control_channel`: Single active control path for EMS commands. Use
+  `home_assistant` for the HA switch, `modbus` for direct inverter registers, or
+  `mqtt` when a real MQTT command subscriber controls the inverter.
 
 ## Grid Charging Dispatch
 
-When a plan is confirmed, the backend checks the current hourly slot. If that
-slot is `charge`, it calls `switch.turn_on` for `grid_charging_switch`; if the
-slot is `idle` or `discharge`, it calls `switch.turn_off`.
+When `control_channel` is `home_assistant`, a confirmed plan checks the current
+hourly slot. If that slot is `charge`, it calls `switch.turn_on` for
+`grid_charging_switch`; if the slot is `idle` or `discharge`, it calls
+`switch.turn_off`.
 
 The add-on also checks the saved current plan every minute, so the switch
 changes automatically when the next hourly slot starts. Manual controls use the
 same switch: `manual_charge` turns it on, while `manual_discharge` and
 `emergency_stop` turn it off.
+
+Use only one real control channel at a time. For the current Home Assistant
+inverter setup, `home_assistant` is the safest default because the switch entity
+already exists. Use Modbus only after the inverter register map is verified. Use
+MQTT only when a bridge or automation is subscribed to the EMS command topics.
 
 ## Real Battery Sensor Mapping
 
