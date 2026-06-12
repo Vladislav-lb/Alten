@@ -23,6 +23,22 @@ export class BackendService extends EventTarget {
     return this.deleteJson(`/api/batteries/${encodeURIComponent(batteryId)}`);
   }
 
+  async fetchDispatchStatus() {
+    return this.getJson("/api/dispatch/status");
+  }
+
+  async fetchCommandHistory(limit = 20) {
+    return this.getJson(`/api/commands/history?limit=${encodeURIComponent(limit)}`);
+  }
+
+  async fetchSettings() {
+    return this.getJson("/api/settings");
+  }
+
+  async saveSettings(settings = {}) {
+    return this.postJson("/api/settings", settings);
+  }
+
   async optimizePlan({ prices = [], virtualBattery, options = {} }) {
     const payload = await this.postJson("/api/plan/optimize", {
       prices: prices.map((entry, index) => ({

@@ -22,6 +22,7 @@ class Settings:
     ha_token: str | None
     grid_charging_switch: str | None
     control_channel: str
+    safety_checks_enabled: bool
     oree_api_key: str | None
     oree_prices_url: str
     oree_zone_eic: str
@@ -46,6 +47,7 @@ def load_settings() -> Settings:
         ha_token=empty_to_none(os.getenv("ALTEN_EMS_HA_TOKEN") or os.getenv("SUPERVISOR_TOKEN")),
         grid_charging_switch=empty_to_none(os.getenv("ALTEN_EMS_GRID_CHARGING_SWITCH", "switch.inverter_battery_grid_charging")),
         control_channel=os.getenv("ALTEN_EMS_CONTROL_CHANNEL", "home_assistant").strip().lower(),
+        safety_checks_enabled=parse_bool(os.getenv("ALTEN_EMS_SAFETY_CHECKS_ENABLED", "true")),
         oree_api_key=empty_to_none(os.getenv("ALTEN_EMS_OREE_API_KEY")),
         oree_prices_url=os.getenv("ALTEN_EMS_OREE_PRICES_URL", "https://www.oree.com.ua/index.php/api/damprices"),
         oree_zone_eic=os.getenv("ALTEN_EMS_OREE_ZONE_EIC", "10Y1001C--000182"),

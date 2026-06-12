@@ -1,5 +1,5 @@
 name: Alten EMS Backend
-version: "0.1.27"
+version: "0.1.28"
 slug: alten_ems_backend
 description: FastAPI backend for BESS optimization, Modbus, MQTT, and Home Assistant EMS services.
 url: https://github.com/Vladislav-lb/Alten
@@ -32,6 +32,7 @@ options:
   ha_url: http://supervisor/core/api
   grid_charging_switch: switch.inverter_battery_grid_charging
   control_channel: home_assistant
+  safety_checks_enabled: true
   oree_api_key: ""
   oree_prices_url: https://www.oree.com.ua/index.php/api/damprices
   oree_zone_eic: 10Y1001C--000182
@@ -49,6 +50,7 @@ schema:
   ha_url: str
   grid_charging_switch: str
   control_channel: list(home_assistant|modbus|mqtt)
+  safety_checks_enabled: bool
   oree_api_key: password
   oree_prices_url: str
   oree_zone_eic: str

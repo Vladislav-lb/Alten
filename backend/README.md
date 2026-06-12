@@ -39,6 +39,10 @@ Core endpoints:
 - `POST /api/plan/dispatch-current`
 - `GET /api/plan/current`
 - `GET /api/plan/history`
+- `GET /api/dispatch/status`
+- `GET /api/commands/history`
+- `GET /api/settings`
+- `POST /api/settings`
 - `POST /api/services/alten_ems/apply_plan`
 - `POST /api/services/alten_ems/emergency_stop`
 - `POST /api/services/alten_ems/manual_charge`
@@ -68,3 +72,14 @@ Other supported control channels are `modbus` and `mqtt`, but they should not be
 used at the same time as Home Assistant switch control. Use Modbus only with a
 verified inverter register map. Use MQTT only when a real subscriber consumes
 the `alten/ems/command/...` topics and applies them to the inverter.
+
+The backend records every EMS command in `/data/command_log.jsonl` and stores
+the latest dispatch state in `/data/dispatch_status.json`. The frontend status
+panel reads these files through `/api/dispatch/status` and
+`/api/commands/history`.
+
+Safety checks are enabled by default. Charge commands are blocked near maximum
+SOC, discharge commands are blocked at minimum reserve SOC, and alarm/fault
+statuses block automatic control. The active control channel, switch entity, and
+safety toggle can be changed from the frontend settings drawer or through
+`POST /api/settings`.

@@ -44,6 +44,8 @@ files into `/config/www`.
 - `control_channel`: Single active control path for EMS commands. Use
   `home_assistant` for the HA switch, `modbus` for direct inverter registers, or
   `mqtt` when a real MQTT command subscriber controls the inverter.
+- `safety_checks_enabled`: Blocks unsafe charge/discharge commands when SOC
+  limits or alarm/fault states are detected.
 
 ## Grid Charging Dispatch
 
@@ -61,6 +63,18 @@ Use only one real control channel at a time. For the current Home Assistant
 inverter setup, `home_assistant` is the safest default because the switch entity
 already exists. Use Modbus only after the inverter register map is verified. Use
 MQTT only when a bridge or automation is subscribed to the EMS command topics.
+
+## Dispatch Status and Command Log
+
+- `GET /api/dispatch/status` returns the latest command result, selected channel,
+  effective power, safety result, and Home Assistant switch verification.
+- `GET /api/commands/history` returns the latest command journal entries.
+- `GET /api/settings` returns active EMS runtime settings.
+- `POST /api/settings` updates `control_channel`, `grid_charging_switch`, and
+  `safety_checks_enabled` without requiring SSH.
+
+The command journal is stored as JSONL in `/data/command_log.jsonl`. The latest
+dispatch status is stored in `/data/dispatch_status.json`.
 
 ## Real Battery Sensor Mapping
 

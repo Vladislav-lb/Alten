@@ -51,6 +51,9 @@ export class UIRenderer extends EventTarget {
       priceLoading = false,
       manualControl = {},
       selectedPlanDate = tomorrowValue(),
+      dispatchStatus = null,
+      commandHistory = [],
+      backendSettings = {},
     } = state;
     const activeGroup = selectedGroup || groups[0]?.group || "ALTEN";
     const unitLabel = powerUnit === "mw" ? "MW" : "kW";
@@ -71,7 +74,7 @@ export class UIRenderer extends EventTarget {
           </div>
         </header>
 
-        ${settingsOpen ? renderSettingsPanel(theme) : ""}
+        ${settingsOpen ? renderSettingsPanel(theme, backendSettings) : ""}
 
         <div class="workspace">
           <aside class="control-sidebar">
@@ -179,7 +182,7 @@ export class UIRenderer extends EventTarget {
                   <button data-action="refresh">⟳</button>
                 </div>
                 <div class="status-body">
-                  ${alerts.length ? alerts.map((alert) => `<p class="${alert.level || "warning"}">${escapeHtml(alert.message)}</p>`).join("") : "Завантаження..."}
+                  ${renderDispatchStatus(dispatchStatus, commandHistory)}
                 </div>
               </div>
             </section>
@@ -205,6 +208,7 @@ export class UIRenderer extends EventTarget {
         id: button.dataset.id,
         mode: button.dataset.mode,
         battery: action === "save-battery-config" ? this.collectBatteryForm() : null,
+        settings: action === "save-backend-settings" ? this.collectBackendSettings() : null,
       },
     }));
   }
@@ -276,6 +280,17 @@ export class UIRenderer extends EventTarget {
         temperature: read("sensor_temperature"),
         status: read("sensor_status"),
       },
+    };
+  }
+
+  collectBackendSettings() {
+    const panel = this.root.querySelector("[data-backend-settings-form]");
+    if (!panel) return {};
+    const read = (key) => panel.querySelector(`[data-form-key="${key}"]`);
+    return {
+      control_channel: read("control_channel")?.value || "home_assistant",
+      grid_charging_switch: read("grid_charging_switch")?.value?.trim() || "",
+      safety_checks_enabled: Boolean(read("safety_checks_enabled")?.checked),
     };
   }
 
@@ -354,7 +369,10 @@ function renderChartPanel(plan) {
   `;
 }
 
-function renderSettingsPanel(theme) {
+function renderSettingsPanel(theme, backendSettings = {}) {
+  const channel = backendSettings.control_channel || "home_assistant";
+  const switchEntity = backendSettings.grid_charging_switch || "switch.inverter_battery_grid_charging";
+  const safetyEnabled = backendSettings.safety_checks_enabled !== false;
   return `
     <aside class="settings-drawer" aria-label="Налаштування EMS">
       <div class="settings-drawer-head">
@@ -378,6 +396,29 @@ function renderSettingsPanel(theme) {
           <option value="light" ${theme === "light" ? "selected" : ""}>Світла</option>
         </select>
       </label>
+      <div class="settings-divider"></div>
+      <div data-backend-settings-form>
+        <div class="settings-block">
+          <span>EMS керування</span>
+        </div>
+        <label class="settings-field">
+          <span>Канал керування</span>
+          <select data-field="setting-control-channel" data-form-key="control_channel">
+            <option value="home_assistant" ${channel === "home_assistant" ? "selected" : ""}>Home Assistant switch</option>
+            <option value="modbus" ${channel === "modbus" ? "selected" : ""}>Modbus</option>
+            <option value="mqtt" ${channel === "mqtt" ? "selected" : ""}>MQTT</option>
+          </select>
+        </label>
+        <label class="settings-field">
+          <span>Grid charging switch</span>
+          <input data-field="setting-grid-switch" data-form-key="grid_charging_switch" value="${escapeHtml(switchEntity)}">
+        </label>
+        <label class="settings-check">
+          <input data-field="setting-safety" data-form-key="safety_checks_enabled" type="checkbox" ${safetyEnabled ? "checked" : ""}>
+          <span>Safety checks</span>
+        </label>
+        <button class="save-button settings-save" data-action="save-backend-settings">Зберегти EMS</button>
+      </div>
     </aside>
   `;
 }
@@ -657,6 +698,60 @@ function renderAlerts(alerts) {
     <section class="alert-strip">
       ${alerts.map((alert) => `<div class="alert ${alert.level || "warning"}">${escapeHtml(alert.message)}</div>`).join("")}
     </section>
+  `;
+}
+
+function renderDispatchStatus(status = null, history = []) {
+  if (!status?.updated_at) {
+    return `<div class="dispatch-state empty-state">Команд ще не було</div>`;
+  }
+  const result = status.result || {};
+  const control = result.control || result;
+  const safetyChecks = status.safety?.checks || [];
+  return `
+    <div class="dispatch-state ${status.blocked ? "blocked" : status.ok ? "ok" : "failed"}">
+      <div class="dispatch-head">
+        <div>
+          <strong>${status.blocked ? "Заблоковано safety" : status.ok ? "Активно" : "Помилка"}</strong>
+          <span>${formatDateTime(status.updated_at)}</span>
+        </div>
+        <span class="mode-pill ${status.mode || "idle"}">${modeIcon(status.mode)} ${escapeHtml(status.mode || "idle")}</span>
+      </div>
+      <div class="dispatch-grid">
+        ${dispatchMetric("Канал", status.channel || "n/a")}
+        ${dispatchMetric("Ціль", status.battery_id || "virtual")}
+        ${dispatchMetric("Потужність", `${formatNumber(status.effective_power_kw ?? status.power_kw ?? 0, 2)} kW`)}
+        ${dispatchMetric("Switch", control.observed_state || control.state || "n/a")}
+      </div>
+      ${safetyChecks.length ? `<div class="safety-list">${safetyChecks.slice(0, 3).map((check) => `<p class="${check.ok === false ? "bad" : "good"}">${escapeHtml(check.reason || "Safety check")}</p>`).join("")}</div>` : ""}
+      ${renderCommandHistory(history)}
+    </div>
+  `;
+}
+
+function renderCommandHistory(history = []) {
+  const items = history.slice(0, 5);
+  if (!items.length) return "";
+  return `
+    <div class="command-history">
+      <strong>Останні команди</strong>
+      ${items.map((item) => `
+        <article class="${item.blocked ? "blocked" : item.ok ? "ok" : "failed"}">
+          <span>${formatDateTime(item.time)}</span>
+          <b>${escapeHtml(item.source || "ems")} · ${escapeHtml(item.mode || "idle")}</b>
+          <em>${escapeHtml(item.channel || "n/a")} · ${formatNumber(item.effective_power_kw ?? item.power_kw ?? 0, 2)} kW</em>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function dispatchMetric(label, value) {
+  return `
+    <div>
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+    </div>
   `;
 }
 
@@ -1010,6 +1105,18 @@ function formatPlanDate(value) {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
+  }).format(date);
+}
+
+function formatDateTime(value) {
+  if (!value) return "n/a";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat("uk-UA", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
   }).format(date);
 }
 

@@ -1159,6 +1159,99 @@ h2 {
   margin: 0;
 }
 
+.status-body {
+  place-items: stretch;
+}
+
+.dispatch-state {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+}
+
+.dispatch-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.dispatch-head strong,
+.dispatch-head span,
+.dispatch-grid span,
+.dispatch-grid strong {
+  display: block;
+}
+
+.dispatch-head span,
+.dispatch-grid span,
+.command-history span,
+.command-history em {
+  color: var(--ems-muted, #777f87);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.dispatch-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.dispatch-grid div,
+.command-history article,
+.safety-list p {
+  border: 1px solid var(--ems-border-soft, #d9dee3);
+  border-radius: 6px;
+  background: var(--ems-panel-soft, #f8fafc);
+  padding: 8px;
+}
+
+.dispatch-grid strong {
+  margin-top: 4px;
+  color: var(--ems-text, #1e2933);
+}
+
+.dispatch-state.blocked .dispatch-head strong,
+.dispatch-state.failed .dispatch-head strong,
+.safety-list .bad {
+  color: var(--ems-red, #ef5350);
+}
+
+.dispatch-state.ok .dispatch-head strong,
+.safety-list .good {
+  color: var(--ems-green, #2dbb66);
+}
+
+.safety-list,
+.command-history {
+  display: grid;
+  gap: 6px;
+}
+
+.command-history > strong {
+  color: var(--ems-text, #1e2933);
+}
+
+.command-history article {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.command-history b {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ems-text, #1e2933);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-history article.blocked {
+  border-color: rgba(239, 83, 80, 0.62);
+}
+
 .empty-state {
   padding: 18px;
   color: #87919b;
@@ -1424,6 +1517,25 @@ input::placeholder {
 }
 
 .settings-field {
+  margin-top: 12px;
+}
+
+.settings-divider {
+  height: 1px;
+  margin: 14px 0;
+  background: var(--ems-border-soft);
+}
+
+.settings-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  color: var(--ems-muted);
+}
+
+.settings-save {
+  width: 100%;
   margin-top: 12px;
 }
 
@@ -1883,6 +1995,15 @@ h2,
 
   .manual-grid button {
     width: 100%;
+  }
+
+  .dispatch-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .command-history article {
+    grid-template-columns: 1fr;
+    gap: 3px;
   }
 
   .plan-matrix {

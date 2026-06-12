@@ -50,6 +50,9 @@ class AltenEmsCard extends HTMLElement {
     this.settingsOpen = false;
     this.planOverrides = [];
     this.backendPlanResult = null;
+    this.dispatchStatus = null;
+    this.commandHistory = [];
+    this.backendSettings = {};
     this.telemetryTimer = null;
     this.eventsBound = false;
     this.batteryManager = new BatteryManager({ batteries: DEFAULT_CONFIG.batteries });
@@ -164,6 +167,23 @@ class AltenEmsCard extends HTMLElement {
       return;
     }
 
+    if (field === "setting-control-channel") {
+      this.backendSettings = { ...this.backendSettings, control_channel: value };
+      this.render();
+      return;
+    }
+
+    if (field === "setting-grid-switch") {
+      this.backendSettings = { ...this.backendSettings, grid_charging_switch: value };
+      return;
+    }
+
+    if (field === "setting-safety") {
+      this.backendSettings = { ...this.backendSettings, safety_checks_enabled: Boolean(value) };
+      this.render();
+      return;
+    }
+
     if (field === "plan-date") {
       const nextDate = normalizePlanDate(value);
       if (!nextDate || nextDate === this.selectedPlanDate) return;
@@ -238,7 +258,7 @@ class AltenEmsCard extends HTMLElement {
     this.render();
   }
 
-  async handleAction({ action, id, mode, battery }) {
+  async handleAction({ action, id, mode, battery, settings }) {
     try {
       if (action === "refresh") {
         await this.refreshBackendState();
@@ -280,6 +300,11 @@ class AltenEmsCard extends HTMLElement {
       }
       if (action === "set-theme") {
         this.setTheme(id);
+      }
+      if (action === "save-backend-settings") {
+        await this.backendService.saveSettings(settings || this.backendSettings);
+        await this.refreshBackendState();
+        this.addAlert("EMS settings saved.", "success");
       }
       if (action === "auto-plan") {
         this.planOverrides = [];
@@ -332,6 +357,7 @@ class AltenEmsCard extends HTMLElement {
           useRange: this.manualUseRange,
         });
         this.addAlert(this.manualCommandMessage(mode, result), mode === "idle" ? "warning" : "success");
+        await this.refreshBackendState();
       }
       if (action === "emergency-stop") {
         try {
@@ -344,6 +370,7 @@ class AltenEmsCard extends HTMLElement {
           await this.haService.emergencyStop();
         }
         this.addAlert("Emergency stop requested by operator.", "critical");
+        await this.refreshBackendState();
       }
     } catch (error) {
       this.addAlert(error.message, "critical");
@@ -369,12 +396,20 @@ class AltenEmsCard extends HTMLElement {
   }
 
   async refreshBackendState() {
-    try {
-      const batteries = await this.backendService.fetchBatteries();
-      this.batteryManager.setBatteries(batteries);
-    } catch (error) {
-      this.addAlert(`Backend batteries unavailable: ${error.message}`, "warning");
+    const [batteries, dispatchStatus, commandHistory, settings] = await Promise.allSettled([
+      this.backendService.fetchBatteries(),
+      this.backendService.fetchDispatchStatus(),
+      this.backendService.fetchCommandHistory(12),
+      this.backendService.fetchSettings(),
+    ]);
+    if (batteries.status === "fulfilled") {
+      this.batteryManager.setBatteries(batteries.value);
+    } else {
+      this.addAlert(`Backend batteries unavailable: ${batteries.reason.message}`, "warning");
     }
+    if (dispatchStatus.status === "fulfilled") this.dispatchStatus = dispatchStatus.value;
+    if (commandHistory.status === "fulfilled") this.commandHistory = commandHistory.value;
+    if (settings.status === "fulfilled") this.backendSettings = settings.value;
   }
 
   async optimizePlan() {
@@ -398,7 +433,10 @@ class AltenEmsCard extends HTMLElement {
   async confirmPlan() {
     const plan = this.getPlanResult().plan;
     try {
-      await this.backendService.applyPlan(plan);
+      const result = await this.backendService.applyPlan(plan);
+      this.dispatchStatus = result.dispatch || this.dispatchStatus;
+      this.addAlert("Plan confirmed and dispatched.", "success");
+      await this.refreshBackendState();
     } catch {
       await this.haService.confirmPlan(plan);
     }
@@ -439,6 +477,9 @@ class AltenEmsCard extends HTMLElement {
         useRange: this.manualUseRange,
       },
       selectedPlanDate: this.selectedPlanDate,
+      dispatchStatus: this.dispatchStatus,
+      commandHistory: this.commandHistory,
+      backendSettings: this.backendSettings,
     });
   }
 
@@ -532,7 +573,9 @@ class AltenEmsCard extends HTMLElement {
   }
 
   manualCommandMessage(mode, result = {}) {
-    const targetCount = Array.isArray(result.targets) ? result.targets.length : 1;
+    const control = result.control || result;
+    if (control.blocked) return `Command blocked by EMS safety: ${firstSafetyReason(control)}`;
+    const targetCount = Array.isArray(control.targets) ? control.targets.length : 1;
     if (mode === "charge") return `Manual charge command sent (${targetCount} target).`;
     if (mode === "discharge") return `Manual discharge command sent (${targetCount} target).`;
     return `Manual stop command sent (${targetCount} target).`;
@@ -630,6 +673,12 @@ function storePlanDate(value) {
   } catch {
     // localStorage can be unavailable in restricted embeds.
   }
+}
+
+function firstSafetyReason(result = {}) {
+  const checks = result.safety?.checks || [];
+  const blocker = checks.find((check) => check.ok === false) || checks[0];
+  return blocker?.reason || "blocked";
 }
 
 function globalCardState() {

@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal
@@ -10,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from battery_store import BatteryStore
+from command_store import CommandStore
 from config import load_settings
 from dispatch import find_current_slot, should_enable_grid_charging, slot_key, slot_power_kw
 from modbus.client import ModbusBatteryClient, PymodbusTcpTransport
@@ -22,6 +24,8 @@ from sensors import HomeAssistantSensorClient
 settings = load_settings()
 app = FastAPI(title="Alten EMS Backend")
 plan_store = PlanStore(settings.data_dir)
+command_store = CommandStore(settings.data_dir)
+runtime_settings_path = settings.data_dir / "ems_settings.json"
 mqtt_client = EmsMqttClient(
     host=settings.mqtt_host,
     port=settings.mqtt_port,
@@ -65,8 +69,10 @@ price_service = MarketPriceService(
 modbus_clients = {}
 battery_store = BatteryStore(settings.data_dir, DEFAULT_BATTERIES)
 dispatch_task: asyncio.Task | None = None
+price_history_task: asyncio.Task | None = None
 last_plan_dispatch_key: str | None = None
 last_grid_charging_state: bool | None = None
+runtime_settings: dict[str, Any] = {}
 
 
 class BatteryModel(BaseModel):
@@ -120,7 +126,8 @@ def root():
         "status": "Alten EMS Backend running",
         "dashboard": "/dashboard",
         "frontend_resource": "/frontend/alten-ems-card.js",
-        "control_channel": settings.control_channel,
+        "control_channel": active_control_channel(),
+        "safety_checks_enabled": active_safety_checks_enabled(),
         "mqtt": "configured" if settings.mqtt_host else "dry-run",
         "modbus": "configured" if settings.modbus_host else "memory",
     }
@@ -132,16 +139,19 @@ def health():
         "ok": True,
         "status": "healthy",
         "service": "alten-ems",
-        "control_channel": settings.control_channel,
+        "control_channel": active_control_channel(),
+        "safety_checks_enabled": active_safety_checks_enabled(),
         "time": datetime.now(timezone.utc).isoformat(),
     }
 
 
 @app.on_event("startup")
 async def start_plan_dispatcher():
-    global dispatch_task
+    global dispatch_task, price_history_task
     if dispatch_task is None:
         dispatch_task = asyncio.create_task(plan_dispatch_loop())
+    if price_history_task is None:
+        price_history_task = asyncio.create_task(price_history_loop())
 
 
 @app.on_event("shutdown")
@@ -150,6 +160,12 @@ async def stop_plan_dispatcher():
         dispatch_task.cancel()
         try:
             await dispatch_task
+        except asyncio.CancelledError:
+            pass
+    if price_history_task:
+        price_history_task.cancel()
+        try:
+            await price_history_task
         except asyncio.CancelledError:
             pass
 
@@ -285,6 +301,38 @@ async def dispatch_current_plan():
     return await dispatch_current_saved_plan(force=True)
 
 
+@app.get("/api/dispatch/status")
+def get_dispatch_status():
+    return command_store.load_status()
+
+
+@app.get("/api/commands/history")
+def get_command_history(limit: int = 50):
+    return command_store.list(limit=limit)
+
+
+@app.get("/api/settings")
+def get_settings():
+    return current_settings_payload()
+
+
+@app.post("/api/settings")
+def update_settings(payload: dict[str, Any]):
+    allowed_channels = {"home_assistant", "modbus", "mqtt"}
+    next_settings = dict(runtime_settings)
+    if "control_channel" in payload:
+        channel = str(payload["control_channel"]).strip().lower()
+        if channel not in allowed_channels:
+            raise HTTPException(status_code=400, detail="control_channel must be home_assistant, modbus, or mqtt")
+        next_settings["control_channel"] = channel
+    if "grid_charging_switch" in payload:
+        next_settings["grid_charging_switch"] = str(payload["grid_charging_switch"]).strip()
+    if "safety_checks_enabled" in payload:
+        next_settings["safety_checks_enabled"] = parse_runtime_bool(payload["safety_checks_enabled"])
+    save_runtime_settings(next_settings)
+    return current_settings_payload()
+
+
 @app.post("/api/services/alten_ems/apply_plan")
 async def ha_apply_plan(request: PlanApplyRequest):
     saved = plan_store.save(request.plan, "applied")
@@ -295,20 +343,20 @@ async def ha_apply_plan(request: PlanApplyRequest):
 @app.post("/api/services/alten_ems/emergency_stop")
 async def ha_emergency_stop(command: ManualCommand | None = None):
     battery_id = command.battery_id if command else "virtual"
-    result = await send_battery_command(battery_id, "idle", 0)
+    result = await send_battery_command(battery_id, "idle", 0, source="emergency_stop")
     saved = plan_store.set_status("failed")
     return {"ok": True, "service": "alten_ems.emergency_stop", "current_plan": saved, **result}
 
 
 @app.post("/api/services/alten_ems/manual_charge")
 async def ha_manual_charge(command: ManualCommand):
-    result = await send_battery_command(command.battery_id, "charge", command.power_kw)
+    result = await send_battery_command(command.battery_id, "charge", command.power_kw, source="manual_charge")
     return {"ok": True, "service": "alten_ems.manual_charge", "schedule": manual_schedule(command), **result}
 
 
 @app.post("/api/services/alten_ems/manual_discharge")
 async def ha_manual_discharge(command: ManualCommand):
-    result = await send_battery_command(command.battery_id, "discharge", command.power_kw)
+    result = await send_battery_command(command.battery_id, "discharge", command.power_kw, source="manual_discharge")
     return {"ok": True, "service": "alten_ems.manual_discharge", "schedule": manual_schedule(command), **result}
 
 
@@ -476,8 +524,9 @@ async def send_battery_command(
     mode: Literal["idle", "charge", "discharge"],
     power_kw: float,
     control_grid_switch: bool = True,
+    source: str = "manual",
 ):
-    result = await dispatch_command(battery_id, mode, power_kw, force=True) if control_grid_switch else None
+    result = await dispatch_command(battery_id, mode, power_kw, force=True, source=source) if control_grid_switch else None
     return {
         "battery_id": battery_id,
         "mode": mode,
@@ -493,6 +542,15 @@ async def plan_dispatch_loop() -> None:
         except Exception:
             pass
         await asyncio.sleep(60)
+
+
+async def price_history_loop() -> None:
+    while True:
+        try:
+            await price_service.get_prices()
+        except Exception:
+            pass
+        await asyncio.sleep(6 * 60 * 60)
 
 
 async def dispatch_current_saved_plan(force: bool = False) -> dict[str, Any]:
@@ -522,7 +580,13 @@ async def dispatch_plan_now(current_plan: dict[str, Any], force: bool = False) -
             "slot": summarize_dispatch_slot(slot),
         }
 
-    switch_result = await dispatch_command("virtual", "charge" if enabled else "idle", slot_power_kw(slot), force=force)
+    switch_result = await dispatch_command(
+        "virtual",
+        "charge" if enabled else "idle",
+        slot_power_kw(slot),
+        force=force,
+        source="plan_dispatch",
+    )
     if switch_result.get("ok") or switch_result.get("skipped"):
         last_plan_dispatch_key = key
     return {
@@ -547,14 +611,220 @@ async def dispatch_command(
     mode: Literal["idle", "charge", "discharge"],
     power_kw: float,
     force: bool = False,
+    source: str = "manual",
 ) -> dict[str, Any]:
-    channel = settings.control_channel
+    safety = await evaluate_command_safety(battery_id, mode, power_kw)
+    effective_power_kw = min(power_kw, safety["max_power_kw"]) if mode != "idle" else 0
+    if not safety["allowed"]:
+        result = {
+            "ok": False,
+            "blocked": True,
+            "channel": active_control_channel(),
+            "source": source,
+            "battery_id": battery_id,
+            "mode": mode,
+            "power_kw": power_kw,
+            "effective_power_kw": effective_power_kw,
+            "safety": safety,
+        }
+        return record_command_result(result)
+
+    channel = active_control_channel()
     if channel == "home_assistant":
-        return await set_grid_charging_for_mode(mode, power_kw, force=force)
-    if channel == "modbus":
-        return await write_modbus_control(battery_id, mode, power_kw)
-    if channel == "mqtt":
-        return await publish_mqtt_control(battery_id, mode, power_kw)
+        result = await set_grid_charging_for_mode(mode, effective_power_kw, force=force)
+    elif channel == "modbus":
+        result = await write_modbus_control(battery_id, mode, effective_power_kw)
+    elif channel == "mqtt":
+        result = await publish_mqtt_control(battery_id, mode, effective_power_kw)
+    else:
+        result = {
+            "ok": False,
+            "channel": channel,
+            "error": f"Unsupported control channel: {channel}",
+        }
+
+    result = {
+        **result,
+        "channel": result.get("channel") or channel,
+        "source": source,
+        "battery_id": battery_id,
+        "mode": mode,
+        "power_kw": power_kw,
+        "effective_power_kw": effective_power_kw,
+        "safety": safety,
+    }
+    return record_command_result(result)
+
+
+async def evaluate_command_safety(
+    battery_id: str,
+    mode: Literal["idle", "charge", "discharge"],
+    power_kw: float,
+) -> dict[str, Any]:
+    targets = await read_safety_targets(battery_id)
+    max_power_kw = aggregate_power_limit(targets, mode)
+    checks = []
+
+    if not active_safety_checks_enabled() or mode == "idle":
+        return {
+            "enabled": active_safety_checks_enabled(),
+            "allowed": True,
+            "max_power_kw": max_power_kw if max_power_kw > 0 else power_kw,
+            "checks": checks,
+            "targets": summarize_safety_targets(targets),
+        }
+
+    if not targets:
+        checks.append({"ok": False, "reason": "No enabled battery telemetry is available"})
+
+    for battery in targets:
+        name = battery.get("name") or battery.get("id")
+        soc = number_or_none(battery.get("soc_percent"))
+        status = str(battery.get("status") or "").strip()
+        min_soc = number_or_none(battery.get("min_soc_percent")) or 0
+        max_soc = number_or_none(battery.get("max_soc_percent")) or 100
+
+        if mode == "charge" and soc is not None and soc >= max_soc - 0.2:
+            checks.append({"ok": False, "battery_id": battery.get("id"), "reason": f"{name} SOC is already at max limit"})
+        if mode == "discharge" and soc is not None and soc <= min_soc + 0.2:
+            checks.append({"ok": False, "battery_id": battery.get("id"), "reason": f"{name} SOC is at minimum reserve"})
+        if has_blocking_status(status):
+            checks.append({"ok": False, "battery_id": battery.get("id"), "reason": f"{name} status blocks EMS control: {status}"})
+
+    if power_kw > max_power_kw > 0:
+        checks.append({
+            "ok": True,
+            "reason": f"Power limited from {power_kw} kW to {max_power_kw} kW",
+        })
+
+    blockers = [check for check in checks if check.get("ok") is False]
+    return {
+        "enabled": True,
+        "allowed": not blockers,
+        "max_power_kw": max_power_kw if max_power_kw > 0 else power_kw,
+        "checks": checks,
+        "targets": summarize_safety_targets(targets),
+    }
+
+
+async def read_safety_targets(battery_id: str) -> list[dict[str, Any]]:
+    source = battery_store.list() if battery_id == "virtual" else [battery_store.get(battery_id)]
+    targets = []
+    for battery in source:
+        if not battery or not battery.get("enabled", True):
+            continue
+        targets.append(await enrich_battery_telemetry(battery))
+    return targets
+
+
+def aggregate_power_limit(targets: list[dict[str, Any]], mode: str) -> float:
+    key = "max_charge_kw" if mode == "charge" else "max_discharge_kw"
+    return sum(max(0.0, number_or_none(target.get(key)) or 0.0) for target in targets)
+
+
+def summarize_safety_targets(targets: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "id": battery.get("id"),
+            "name": battery.get("name"),
+            "soc_percent": battery.get("soc_percent"),
+            "power_kw": battery.get("power_kw"),
+            "status": battery.get("status"),
+            "online": battery.get("online"),
+        }
+        for battery in targets
+    ]
+
+
+def has_blocking_status(status: str) -> bool:
+    normalized = status.strip().lower()
+    if not normalized or normalized in {"ok", "idle", "normal", "online", "connected"}:
+        return False
+    return any(token in normalized for token in ("fault", "alarm", "error", "fail", "trip", "protect"))
+
+
+def record_command_result(result: dict[str, Any]) -> dict[str, Any]:
+    ok = bool(result.get("ok") or result.get("skipped"))
+    entry = command_store.append({
+        **result,
+        "ok": ok,
+    })
+    command_store.save_status({
+        "ok": ok,
+        "source": result.get("source"),
+        "channel": result.get("channel") or active_control_channel(),
+        "battery_id": result.get("battery_id"),
+        "mode": result.get("mode"),
+        "power_kw": result.get("power_kw"),
+        "effective_power_kw": result.get("effective_power_kw"),
+        "blocked": bool(result.get("blocked")),
+        "safety": result.get("safety"),
+        "result": result,
+        "command_id": entry["id"],
+    })
+    return entry
+
+
+def number_or_none(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def load_runtime_settings() -> dict[str, Any]:
+    try:
+        payload = json.loads(runtime_settings_path.read_text(encoding="utf-8"))
+        return payload if isinstance(payload, dict) else {}
+    except Exception:
+        return {}
+
+
+def save_runtime_settings(payload: dict[str, Any]) -> None:
+    global runtime_settings
+    runtime_settings = dict(payload)
+    runtime_settings_path.parent.mkdir(parents=True, exist_ok=True)
+    runtime_settings_path.write_text(json.dumps(runtime_settings, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def active_control_channel() -> str:
+    return str(runtime_settings.get("control_channel") or settings.control_channel).strip().lower()
+
+
+def active_grid_charging_switch() -> str | None:
+    value = runtime_settings.get("grid_charging_switch")
+    if value is None:
+        return settings.grid_charging_switch
+    return str(value).strip() or None
+
+
+def active_safety_checks_enabled() -> bool:
+    if "safety_checks_enabled" in runtime_settings:
+        return parse_runtime_bool(runtime_settings["safety_checks_enabled"])
+    return settings.safety_checks_enabled
+
+
+def current_settings_payload() -> dict[str, Any]:
+    return {
+        "control_channel": active_control_channel(),
+        "grid_charging_switch": active_grid_charging_switch(),
+        "safety_checks_enabled": active_safety_checks_enabled(),
+        "defaults": {
+            "control_channel": settings.control_channel,
+            "grid_charging_switch": settings.grid_charging_switch,
+            "safety_checks_enabled": settings.safety_checks_enabled,
+        },
+        "runtime": runtime_settings,
+    }
+
+
+def parse_runtime_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def unsupported_channel_result(channel: str) -> dict[str, Any]:
     return {
         "ok": False,
         "channel": channel,
@@ -621,7 +891,7 @@ def resolve_control_targets(battery_id: str) -> list[str]:
 
 async def set_grid_charging_switch(enabled: bool, force: bool = False) -> dict[str, Any]:
     global last_grid_charging_state
-    entity_id = settings.grid_charging_switch
+    entity_id = active_grid_charging_switch()
     if not force and last_grid_charging_state is enabled:
         return {
             "ok": True,
@@ -673,3 +943,6 @@ modbus_clients.update(build_modbus_clients())
 def refresh_modbus_clients() -> None:
     modbus_clients.clear()
     modbus_clients.update(build_modbus_clients())
+
+
+runtime_settings.update(load_runtime_settings())

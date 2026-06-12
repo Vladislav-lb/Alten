@@ -49,6 +49,12 @@ class HomeAssistantSensorClient:
         except Exception:
             return None
 
+    async def get_state(self, entity_id: str | None) -> dict[str, Any] | None:
+        if not self.base_url or not self.token or not entity_id:
+            return None
+        async with aiohttp.ClientSession(headers=self.headers) as session:
+            return await self.read_state(session, entity_id)
+
     async def call_service(self, domain: str, service: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         if not self.base_url or not self.token:
             return {
@@ -89,9 +95,11 @@ class HomeAssistantSensorClient:
             }
         service = "turn_on" if enabled else "turn_off"
         result = await self.call_service("switch", service, {"entity_id": entity_id})
+        observed = await self.get_state(entity_id)
         return {
             "entity_id": entity_id,
             "state": "on" if enabled else "off",
+            "observed_state": observed.get("state") if observed else None,
             **result,
         }
 
